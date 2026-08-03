@@ -2,21 +2,21 @@ import {
   AlertCircle,
   Check,
   ChevronDown,
-  Clock,
   Download,
   FileText,
   Loader,
   LogOut,
   MessageSquare,
+  MoreHorizontal,
   Plus,
   Scale, Send,
+  Trash2,
   X,
   Zap
 } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import './index.css';
 import {
-  checkDeadline,
   downloadPDF,
   generatePDFNotice,
   generateRTIApplication,
@@ -27,6 +27,8 @@ import {
 } from './lib/api';
 import { AuthContext, AuthProvider, useAuth } from './lib/auth';
 import { detectLanguage } from './lib/language';
+
+const shortTitle = (t: string) => (t.length > 42 ? `${t.slice(0, 39)}…` : t);
 
 // ============ LOGIN PAGE ============
 
@@ -182,6 +184,13 @@ interface Message {
   timestamp: Date;
 }
 
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: Message[];
+  timestamp: Date;
+}
+
 // ============ MAIN APP CONTENT ============
 
 function AppContent() {
@@ -196,11 +205,40 @@ function AppContent() {
     return `Evening, ${name}`;
   };
 
-  const [activeView, setActiveView] = useState<'chat' | 'notice' | 'evidence' | 'rti' | 'deadline'>('chat');
+  const [activeView, setActiveView] = useState<'chat' | 'notice' | 'evidence' | 'rti'>('chat');
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [artifactOpen, setArtifactOpen] = useState(false);
+  const [expandedSource, setExpandedSource] = useState<string | null>(null);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>(() => {
+    const storageKey = `chat_sessions_v2_${auth.userId || 'anonymous'}`;
+    try {
+      const scoped = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      if (Array.isArray(scoped) && scoped.length > 0) return scoped;
+      const v1 = JSON.parse(localStorage.getItem(`chat_sessions_${auth.userId || 'anonymous'}`) || '[]');
+      if (Array.isArray(v1) && v1.length > 0) {
+        localStorage.setItem(storageKey, JSON.stringify(v1));
+        return v1;
+      }
+      return [];
+    } catch {
+      return [];
+    } finally {
+      try {
+        const keys = Object.keys(localStorage);
+        keys.forEach((key) => {
+          if (key.startsWith('chat_sessions_') && !key.startsWith('chat_sessions_v2_')) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch {
+        // ignore cleanup errors
+      }
+    }
+  });
   const [showPDFModal, setShowPDFModal] = useState(false);
   const [userPDFs, setUserPDFs] = useState<any[]>(() => {
     try {
@@ -212,6 +250,8 @@ function AppContent() {
   const [backendStatus, setBackendStatus] = useState<string>('Checking...');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [chatMenuId, setChatMenuId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Freemium Gate
   const [freeQueriesCount, setFreeQueriesCount] = useState<number>(() => {
@@ -252,15 +292,6 @@ function AppContent() {
   const [rtiLoading, setRtiLoading] = useState(false);
   const [rtiResult, setRtiResult] = useState<any>(null);
   const [rtiError, setRtiError] = useState('');
-
-  // Deadline states
-  const [deadlineData, setDeadlineData] = useState({
-    case_type: 'consumer',
-    incident_date: ''
-  });
-  const [deadlineLoading, setDeadlineLoading] = useState(false);
-  const [deadlineResult, setDeadlineResult] = useState<any>(null);
-  const [deadlineError, setDeadlineError] = useState('');
 
   // Fetch backend health and user PDFs
   useEffect(() => {
@@ -403,21 +434,52 @@ function AppContent() {
     }
   };
 
-  // Deadline Form Submit
-  const handleDeadlineSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setDeadlineLoading(true);
-    setDeadlineError('');
-    setDeadlineResult(null);
-    try {
-      const parts = deadlineData.incident_date.split('-');
-      const formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
-      const data = await checkDeadline(deadlineData.case_type, formattedDate);
-      setDeadlineResult(data);
-    } catch (err: any) {
-      setDeadlineError(err.message || 'Error calculating deadline');
-    } finally {
-      setDeadlineLoading(false);
+  // Chat sessions: sync active session with messages + persist to localStorage
+  useEffect(() => {
+    if (activeChatId && messages.length > 0) {
+      setChatSessions((prev) => prev.map((s) => (s.id === activeChatId ? { ...s, messages, timestamp: new Date() } : s)));
+    }
+  }, [messages, activeChatId]);
+
+  useEffect(() => {
+    const storageKey = `chat_sessions_v2_${auth.userId || 'anonymous'}`;
+    localStorage.setItem(storageKey, JSON.stringify(chatSessions));
+  }, [chatSessions, auth.userId]);
+
+  const startNewChat = () => {
+    if (messages.length > 0) {
+      const firstUser = messages.find((m) => m.type === 'user');
+      const raw = firstUser?.content || 'New chat';
+      const title = raw.split(/\s+/).slice(0, 5).join(' ') || 'New chat';
+      const session: ChatSession = { id: Date.now().toString(), title, messages: [...messages], timestamp: new Date() };
+      setChatSessions((prev) => [session, ...prev].slice(0, 20));
+    }
+    setMessages([]);
+    setActiveChatId(null);
+    setExpandedSource(null);
+    setInputValue('');
+    setActiveView('chat');
+  };
+
+  const openChat = (session: ChatSession) => {
+    setMessages([...session.messages]);
+    setActiveChatId(session.id);
+    setExpandedSource(null);
+    setActiveView('chat');
+  };
+
+  const closeChatMenu = () => {
+    setChatMenuId(null);
+    setConfirmDeleteId(null);
+  };
+
+  const deleteChat = (sessionId: string) => {
+    setChatSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    closeChatMenu();
+    if (activeChatId === sessionId) {
+      setActiveChatId(null);
+      setMessages([]);
+      setExpandedSource(null);
     }
   };
 
@@ -453,6 +515,15 @@ function AppContent() {
         {/* Sidebar Navigation */}
         <div className="p-4 space-y-1.5">
           <button
+            onClick={startNewChat}
+            className="w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer text-amber-400 border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/15"
+            title="Start a new chat"
+          >
+            <Plus className="w-4 h-4" />
+            New Chat
+          </button>
+
+          <button
             onClick={() => { setActiveView('chat'); }}
             className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'chat' ? 'bg-[#21376d]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#21376d]/10 hover:text-white'
               }`}
@@ -463,56 +534,60 @@ function AppContent() {
             <MessageSquare className={`w-4 h-4 ${activeView === 'chat' ? 'text-amber-400' : 'text-slate-400'}`} />
             AI Legal Advisor
           </button>
-          <button
-            onClick={() => { setActiveView('notice'); }}
-            className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'notice' ? 'bg-[#21376d]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#21376d]/10 hover:text-white'
-              }`}
-          >
-            {activeView === 'notice' && (
-              <div className="absolute left-0 top-2 bottom-2 w-[3px] bg-amber-500 rounded-r"></div>
+
+          {/* Artifact Dropdown (tools) */}
+          <div className="pt-1.5">
+            <button
+              onClick={() => setArtifactOpen(!artifactOpen)}
+              className="w-full flex items-center justify-between pl-5 pr-4 py-2 rounded-lg text-[11px] font-bold text-slate-400 uppercase tracking-wider hover:bg-[#21376d]/10 hover:text-amber-400 transition cursor-pointer"
+            >
+              Artifact
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${artifactOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {artifactOpen && (
+              <div className="mt-1 space-y-1.5">
+                <button
+                  onClick={() => { setActiveView('notice'); }}
+                  className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'notice' ? 'bg-[#21376d]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#21376d]/10 hover:text-white'
+                    }`}
+                >
+                  {activeView === 'notice' && (
+                    <div className="absolute left-0 top-2 bottom-2 w-[3px] bg-amber-500 rounded-r"></div>
+                  )}
+                  <FileText className={`w-4 h-4 ${activeView === 'notice' ? 'text-amber-400' : 'text-slate-400'}`} />
+                  Notice Generator
+                </button>
+                <button
+                  onClick={() => { setActiveView('evidence'); }}
+                  className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'evidence' ? 'bg-[#21376d]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#21376d]/10 hover:text-white'
+                    }`}
+                >
+                  {activeView === 'evidence' && (
+                    <div className="absolute left-0 top-2 bottom-2 w-[3px] bg-amber-500 rounded-r"></div>
+                  )}
+                  <Check className={`w-4 h-4 ${activeView === 'evidence' ? 'text-amber-400' : 'text-slate-400'}`} />
+                  Evidence Checklist
+                </button>
+                <button
+                  onClick={() => { setActiveView('rti'); }}
+                  className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'rti' ? 'bg-[#21376d]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#21376d]/10 hover:text-white'
+                    }`}
+                >
+                  {activeView === 'rti' && (
+                    <div className="absolute left-0 top-2 bottom-2 w-[3px] bg-amber-500 rounded-r"></div>
+                  )}
+                  <Zap className={`w-4 h-4 ${activeView === 'rti' ? 'text-amber-400' : 'text-slate-400'}`} />
+                  RTI Application
+                </button>
+              </div>
             )}
-            <FileText className={`w-4 h-4 ${activeView === 'notice' ? 'text-amber-400' : 'text-slate-400'}`} />
-            Notice Generator
-          </button>
-          <button
-            onClick={() => { setActiveView('evidence'); }}
-            className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'evidence' ? 'bg-[#21376d]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#21376d]/10 hover:text-white'
-              }`}
-          >
-            {activeView === 'evidence' && (
-              <div className="absolute left-0 top-2 bottom-2 w-[3px] bg-amber-500 rounded-r"></div>
-            )}
-            <Check className={`w-4 h-4 ${activeView === 'evidence' ? 'text-amber-400' : 'text-slate-400'}`} />
-            Evidence Checklist
-          </button>
-          <button
-            onClick={() => { setActiveView('rti'); }}
-            className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'rti' ? 'bg-[#21376d]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#21376d]/10 hover:text-white'
-              }`}
-          >
-            {activeView === 'rti' && (
-              <div className="absolute left-0 top-2 bottom-2 w-[3px] bg-amber-500 rounded-r"></div>
-            )}
-            <Zap className={`w-4 h-4 ${activeView === 'rti' ? 'text-amber-400' : 'text-slate-400'}`} />
-            RTI Application
-          </button>
-          <button
-            onClick={() => { setActiveView('deadline'); }}
-            className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'deadline' ? 'bg-[#21376d]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#21376d]/10 hover:text-white'
-              }`}
-          >
-            {activeView === 'deadline' && (
-              <div className="absolute left-0 top-2 bottom-2 w-[3px] bg-amber-500 rounded-r"></div>
-            )}
-            <Clock className={`w-4 h-4 ${activeView === 'deadline' ? 'text-amber-400' : 'text-slate-400'}`} />
-            Deadline Tracker
-          </button>
+          </div>
         </div>
 
-        {/* Sidebar Content (PDF List Preview) */}
+        {/* Sidebar Content (PDF Gen + Chat History) */}
         <div className="flex-1 overflow-y-auto p-4 border-t border-[#21376d]/20">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-2 mb-2">My Generated PDFs</div>
-          <div className="space-y-1">
+          <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider px-2 py-2 mb-1 mt-1">PDF Gen</div>
+          <div className="space-y-1 mb-3">
             {userPDFs.slice(0, 5).map((pdf, idx) => (
               <button
                 key={idx}
@@ -527,6 +602,58 @@ function AppContent() {
               <button onClick={() => setShowPDFModal(true)} className="text-[11px] text-amber-400 hover:underline px-2 py-1">
                 View all {userPDFs.length} documents...
               </button>
+            )}
+            {userPDFs.length === 0 && (
+              <p className="text-[11px] text-slate-500 px-2 py-1">No PDFs generated yet</p>
+            )}
+          </div>
+
+          <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider px-2 py-2 mb-1">Chat History</div>
+          <div className="space-y-1">
+            {chatSessions.slice(0, 5).map((session) => (
+              <div key={session.id} className="relative">
+                <div className={`w-full flex items-start gap-2 p-2 rounded transition text-xs ${activeChatId === session.id ? 'bg-[#21376d]/25 border border-[#21376d]/40' : 'hover:bg-slate-700/50 border border-transparent'
+                  }`}>
+                  <button
+                    onClick={() => { openChat(session); closeChatMenu(); }}
+                    className="flex items-start gap-2 min-w-0 flex-1 text-left"
+                    title={session.title}
+                  >
+                    <span className="mt-0.5 text-[10px] text-amber-400">💬</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="text-slate-300 line-clamp-1 leading-snug block">{shortTitle(session.title)}</span>
+                      <span className="text-[9px] text-slate-500 block mt-0.5">
+                        {new Date(session.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (chatMenuId === session.id) closeChatMenu();
+                      else { setChatMenuId(session.id); setConfirmDeleteId(null); }
+                    }}
+                    className="p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700/60 transition shrink-0"
+                    title="Options"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {chatMenuId === session.id && (
+                  <div className="absolute right-1 top-9 z-30 w-44 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-1.5">
+                    <button
+                      onClick={() => setConfirmDeleteId(session.id)}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-red-400 hover:bg-red-500/10 transition text-xs font-semibold"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {chatSessions.length === 0 && (
+              <p className="text-[11px] text-slate-500 px-2 py-1">No chats yet — ask a legal question</p>
             )}
           </div>
         </div>
@@ -693,8 +820,7 @@ function AppContent() {
                       {[
                         { label: '📄 Notice Generator', view: 'notice' },
                         { label: '📋 Evidence Checklist', view: 'evidence' },
-                        { label: '📝 RTI Builder', view: 'rti' },
-                        { label: '⏰ Deadline Tracker', view: 'deadline' }
+                        { label: '📝 RTI Builder', view: 'rti' }
                       ].map((item, idx) => (
                         <button
                           key={idx}
@@ -718,7 +844,7 @@ function AppContent() {
                   {/* Messages list */}
                   <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-4xl mx-auto w-full">
                     {messages.map((msg) => (
-                      <div key={msg.id} className={`flex gap-4 ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div key={msg.id} id={`msg-${msg.id}`} className={`flex gap-4 ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
                         {msg.type === 'assistant' && (
                           <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0 shadow-md">
                             <Scale className="w-4.5 h-4.5 text-amber-400" />
@@ -731,31 +857,46 @@ function AppContent() {
                             : 'bg-slate-800/80 border border-slate-700 text-slate-100'
                             }`}
                         >
-                          <p className="text-sm md:text-[15px] whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-
                           {msg.type === 'assistant' && msg.domain && (
-                            <div className="mt-3 flex items-center gap-4 text-xs font-semibold text-amber-400/90 bg-amber-500/5 p-2 rounded-lg border border-amber-500/10">
-                              <span>📂 DOMAIN: {msg.domain.toUpperCase()}</span>
-                              {msg.confidence !== undefined && (
-                                <span>🎯 CONFIDENCE: {(msg.confidence * 100).toFixed(0)}%</span>
-                              )}
+                            <div className="mb-3 flex items-center gap-4 text-xs font-semibold text-amber-400/90 bg-amber-500/5 p-2 rounded-lg border border-amber-500/10">
+                              <span>📂 {msg.domain.toUpperCase()}</span>
                             </div>
                           )}
+
+                          <p className="text-sm md:text-[15px] whitespace-pre-wrap leading-relaxed">{msg.content}</p>
 
                           {msg.type === 'assistant' && msg.results && msg.results.length > 0 && (
                             <div className="mt-4 space-y-2 border-t border-slate-700 pt-3">
                               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Applicable Reference Laws</p>
                               <div className="grid grid-cols-1 gap-2">
-                                {msg.results.map((result, idx) => (
-                                  <div key={idx} className="p-3 rounded bg-slate-900/60 border border-slate-700/50 text-xs">
-                                    <div className="flex justify-between items-start mb-1">
-                                      <div className="font-semibold text-amber-400">{result.section}</div>
-                                      <div className="text-[10px] text-slate-400 font-semibold uppercase">{result.source_act}</div>
+                                {msg.results.map((result, idx) => {
+                                  const cardKey = `${msg.id}-${idx}`;
+                                  const isOpen = expandedSource === cardKey;
+                                  return (
+                                    <div key={idx} className="p-3 rounded-lg bg-slate-900/60 border border-slate-700/50 border-l-2 border-l-amber-500 text-xs">
+                                      <div className="flex items-center justify-between gap-2 mb-1">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <span className="w-5 h-5 rounded-full bg-amber-500/15 text-amber-400 text-[10px] font-bold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
+                                          <span className="font-bold text-amber-400 truncate">{result.section_title || result.section}</span>
+                                        </div>
+                                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#21376d]/40 border border-[#21376d]/40 text-slate-300 uppercase tracking-wide whitespace-nowrap flex-shrink-0">{result.source_act}</span>
+                                      </div>
+                                      <div className="text-slate-400 mb-1.5">
+                                        <span className="text-amber-500/90 font-semibold">{result.section}</span>
+                                        {result.topic && <span> · {result.topic}</span>}
+                                      </div>
+                                      <div className={`text-slate-400 italic font-mono text-[11px] ${isOpen ? '' : 'line-clamp-2'}`}>"{result.content_preview}"</div>
+                                      {result.content && result.content.length > 300 && (
+                                        <button
+                                          onClick={() => setExpandedSource(isOpen ? null : cardKey)}
+                                          className="mt-1.5 text-[10px] font-semibold text-amber-400 hover:text-amber-300 hover:underline cursor-pointer"
+                                        >
+                                          {isOpen ? 'Read less ▴' : 'Read full text ▾'}
+                                        </button>
+                                      )}
                                     </div>
-                                    <div className="text-slate-300 mb-1"><strong>Topic:</strong> {result.topic}</div>
-                                    <div className="text-slate-400 italic font-mono text-[11px]">"{result.content_preview}"</div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
@@ -1001,67 +1142,7 @@ function AppContent() {
             </div>
           )}
 
-          {/* Deadline View */}
-          {activeView === 'deadline' && (
-            <div className="p-6 md:p-8 max-w-4xl mx-auto w-full space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-1">⏰ Deadline Limitation Calculator</h2>
-                <p className="text-slate-400 text-sm">Calculate dates of expiration based on the Limitation Act 1963.</p>
-              </div>
-
-              <form onSubmit={handleDeadlineSubmit} className="bg-slate-800/40 border border-slate-700/60 p-6 rounded-2xl space-y-5">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Case Category</label>
-                    <select className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white outline-none focus:border-amber-500" value={deadlineData.case_type} onChange={(e) => setDeadlineData({ ...deadlineData, case_type: e.target.value })}>
-                      <option value="consumer">Consumer Court Complaints</option>
-                      <option value="labour_salary">Labour Wage Dispute</option>
-                      <option value="rti_appeal">RTI First Appeal</option>
-                      <option value="rti_second_appeal">RTI Second Appeal</option>
-                      <option value="rent_eviction">Tenant Eviction Order Appeal</option>
-                      <option value="criminal_fir">Criminal FIR Limitation</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Occurrence Date</label>
-                    <input type="date" className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white outline-none focus:border-amber-500" value={deadlineData.incident_date} onChange={(e) => setDeadlineData({ ...deadlineData, incident_date: e.target.value })} required />
-                  </div>
-                </div>
-
-                <button type="submit" disabled={deadlineLoading} className="w-full py-3 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold rounded-xl transition">
-                  {deadlineLoading ? 'Calculating...' : 'Run Calculator'}
-                </button>
-              </form>
-
-              {deadlineError && <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-300 text-sm rounded-lg">{deadlineError}</div>}
-              {deadlineResult && (
-                <div className="bg-slate-800/50 border border-slate-700 p-6 rounded-2xl space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 bg-slate-900/50 rounded-xl border border-slate-700/60">
-                      <div className="text-xs text-slate-400 mb-1 uppercase tracking-wider font-semibold">Limitation Deadline</div>
-                      <div className="text-xl font-bold text-white">{deadlineResult.deadline_date}</div>
-                    </div>
-                    <div className={`p-4 rounded-xl border ${deadlineResult.status === '✅ OK' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-450' : 'bg-red-500/10 border-red-500/30 text-red-400'
-                      }`}>
-                      <div className="text-xs text-slate-400 mb-1 uppercase tracking-wider font-semibold">Limitation Status</div>
-                      <div className="text-xl font-bold">{deadlineResult.status}</div>
-                    </div>
-                  </div>
-
-                  {deadlineResult.days_remaining !== null && (
-                    <div className="text-sm font-semibold text-slate-300">
-                      Days Remaining to file: <span className={deadlineResult.days_remaining > 30 ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>{deadlineResult.days_remaining} Days</span>
-                    </div>
-                  )}
-
-                  <div className="text-xs text-slate-400 leading-relaxed pt-2 border-t border-slate-700">
-                    <strong>Rule description:</strong> <br />
-                    {deadlineResult.description}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Deadline View removed */}
         </div>
       </div>
 
@@ -1103,16 +1184,59 @@ function AppContent() {
           </div>
         </div>
       )}
+
+      {/* Delete Chat Confirmation Modal */}
+      {confirmDeleteId && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={closeChatMenu}
+        >
+          <div
+            className="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-7 text-center shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto w-14 h-14 rounded-full bg-red-500/15 flex items-center justify-center mb-4">
+              <Trash2 className="w-7 h-7 text-red-400" />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Delete this chat?</h3>
+            <p className="text-sm text-slate-400 mb-6 leading-relaxed">
+              <span className="text-slate-200 font-semibold">
+                {shortTitle(chatSessions.find((s) => s.id === confirmDeleteId)?.title || '')}
+              </span>{' '}
+              will be permanently deleted. This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => deleteChat(confirmDeleteId)}
+                className="flex-1 px-4 py-3 rounded-xl bg-red-500 hover:bg-red-400 text-white font-bold text-sm transition shadow-lg"
+              >
+                Yes, delete
+              </button>
+              <button
+                onClick={closeChatMenu}
+                className="flex-1 px-4 py-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold text-sm transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ============ MAIN APP WITH PROVIDER ============
 
+function KeyedAppContent() {
+  const auth = React.useContext(AuthContext);
+  return <AppContent key={auth?.userId ?? 'anon'} />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <KeyedAppContent />
     </AuthProvider>
   );
 }

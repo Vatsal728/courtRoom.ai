@@ -63,6 +63,7 @@ venv.bak/
 
 # Vector database storage
 chroma_db/
+.hf_cache/
 
 # ML models / Saved Classifier Pickle files
 models/*.pkl
@@ -80,3 +81,6 @@ data/training/
 .idea/
 .gemini/
 .agents/
+
+# Log files
+*.log

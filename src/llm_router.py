@@ -1,188 +1,129 @@
 import os
 import sys
 import io
+import time
+import requests
 from typing import Dict
 from dotenv import load_dotenv
 
-# Set console output encoding to UTF-8 to prevent UnicodeEncodeError on Windows terminals
 if sys.stdout.encoding != 'utf-8':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
 
-load_dotenv()
+load_dotenv(override=True)
+
+SYSTEM_PROMPT = """You are an elite Indian Legal AI assistant. Resolve the user's issue with high legal accuracy.
+
+STRICT COMPLIANCE RULES:
+1. THE IPC IS REPLACED. As of July 1, 2024, the Indian Penal Code (IPC) was replaced by Bharatiya Nyaya Sanhita (BNS), 2023. You MUST map all criminal sections to BNS 2023:
+   - Replace IPC 420 with BNS Section 318 (Cheating).
+   - Replace IPC 499/500 with BNS Section 356 (Defamation).
+   - Replace IPC 503/506 with BNS Section 351 (Criminal Intimidation).
+   - Replace IPC 378/379 with BNS Section 303 (Theft).
+   - Replace IPC 302 with BNS Section 103 (Murder).
+   - Replace CrPC with BNSS 2023 (Bharatiya Nagarik Suraksha Sanhita).
+   - Replace Evidence Act with BSA 2023 (Bharatiya Sakshya Adhiniyam).
+2. If retrieved context documents contain older IPC sections, state: 'Under BNS 2023 (formerly IPC Section X...)'.
+3. Use ONLY the sections present in the Context above. Cite exact section numbers from the Context. If no Context section matches the query, say 'No specific provision found for this issue' instead of inventing sections. Never invent section numbers, titles, or penalties not present in the Context. The IPC->BNS mappings in rule 1 are illustrative only - you must NOT quote them unless the exact section also appears in the Context. If a section number is not in the Context, do not include it in applicable_sections.
+4. You MUST return a valid JSON object. No markdown, no extra text, no code fences.
+
+Return this exact JSON structure:
+{
+  "short_answer": "2-3 sentence summary",
+  "is_this_illegal": "explain legality",
+  "criminal_route": {
+    "applicable_sections": ["BNS 2023 Section ..."],
+    "penalties": ["..."],
+    "procedure": ["..."]
+  },
+  "civil_route": {
+    "remedies": ["..."],
+    "compensation_range": "estimated range",
+    "procedure": ["..."]
+  },
+  "compensation_claims": ["..."],
+  "evidence_needed": ["..."],
+  "practical_steps": ["step1", "step2", "step3", "step4", "step5", "step6"]
+}"""
+
+USER_PROMPT_TEMPLATE = """Context:
+{context}
+
+AVAILABLE SECTIONS — applicable_sections and all section citations MUST be chosen ONLY from this list (never invent or use the IPC->BNS mapping examples):
+{available}
+
+Query:
+{query}"""
+
+LLM_TIMEOUT_ERR = {
+    "short_answer": "AI service is temporarily unavailable. Please try again in a few moments.",
+    "is_this_illegal": "Unable to determine legality at this time.",
+    "criminal_route": {"applicable_sections": [], "penalties": [], "procedure": []},
+    "civil_route": {"remedies": [], "compensation_range": "", "procedure": []},
+    "compensation_claims": [],
+    "evidence_needed": [],
+    "practical_steps": ["Contact a local lawyer for immediate assistance"]
+}
+
 
 class LLMRouter:
-    """Route queries: Gemini Primary → Ollama Fallback"""
-    
+    """Route queries: Local Ollama -> Static error"""
+
     def __init__(self):
-        self.provider = os.getenv("LLM_PROVIDER", "gemini")
-        self.gemini_key = os.getenv("GEMINI_API_KEY")
         self.ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        self.ollama_model = os.getenv("OLLAMA_MODEL", "qwen3:4b")
+        self.ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
         self.ollama_timeout = int(os.getenv("OLLAMA_TIMEOUT", "300"))
-    
-    def get_gemini_response(self, context: str, query: str) -> str:
-        """Call Gemini API - Primary"""
+        self._session = requests.Session()
+
+    def _retry(self, fn, max_attempts: int = 2, backoff: float = 1.0):
+        last_exc = None
+        for attempt in range(max_attempts):
+            try:
+                return fn()
+            except (requests.ConnectionError, requests.Timeout) as e:
+                last_exc = e
+                if attempt < max_attempts - 1:
+                    time.sleep(backoff * (2 ** attempt))
+            except Exception as e:
+                raise e
+        raise last_exc
+
+    def _call_ollama(self, prompt: str) -> str:
+        response = self._session.post(
+            f"{self.ollama_url}/api/generate",
+            json={
+                "model": self.ollama_model,
+                "prompt": prompt,
+                "stream": False,
+                "format": "json",
+                "temperature": 0.1,
+                "options": {"num_predict": 900, "num_ctx": 8192},
+                "keep_alive": "30m"
+            },
+            timeout=self.ollama_timeout
+        )
+        if response.status_code == 200:
+            return response.json().get("response", "")
+        raise Exception(f"Ollama error: {response.status_code}")
+
+    def generate_response(self, context: str, query: str, available: str = "") -> str:
+        """Generate a legal analysis using local Ollama, then static error."""
+        user_prompt = USER_PROMPT_TEMPLATE.format(context=context, query=query, available=available)
+
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=self.gemini_key)
-            
-            model = genai.GenerativeModel('gemini-2.0-flash')
-            
-            prompt = f"""You are an elite Indian Legal AI assistant. Resolve the user's issue with high legal accuracy and clean formatting.
-
-STRICT COMPLIANCE RULES:
-1. NEVER leave blank headers or empty asterisks like '**, Section...'. Ensure every single bullet point has complete, non-truncated text.
-2. THE IPC IS REPLACED. As of July 1, 2024, the Indian Penal Code (IPC) was replaced by Bharatiya Nyaya Sanhita (BNS), 2023. You MUST map all criminal sections to BNS 2023:
-   - Replace IPC 420 with BNS Section 318 (Cheating).
-   - Replace IPC 499/500 with BNS Section 356 (Defamation).
-   - Replace IPC 503/506 with BNS Section 351 (Criminal Intimidation).
-   - Replace IPC 378/379 with BNS Section 303 (Theft).
-   - Replace IPC 302 with BNS Section 103 (Murder).
-   - Replace CrPC with BNSS 2023 (Bharatiya Nagarik Suraksha Sanhita).
-   - Replace Evidence Act with BSA 2023 (Bharatiya Sakshya Adhiniyam).
-3. If retrieved context documents contain older IPC sections, state: 'Under BNS 2023 (formerly IPC Section X)...'.
-
-You MUST structure your response exactly using these headers:
-### SHORT ANSWER
-[Provide a concise 2-3 sentence summary answer]
-
-### IS THIS ILLEGAL?
-[Explain if the action is illegal and cite BNS 2023 and relevant special laws]
-
-### CRIMINAL ROUTE
-- Sections: [List applicable BNS 2023 sections]
-- Penalties: [List penalties/imprisonment terms]
-- Procedure: [Step-by-step BNSS 2023 criminal process]
-
-### CIVIL ROUTE
-- Remedies: [List civil remedies/injunctions]
-- Compensation Range: [Estimated compensation or damages]
-- Procedure: [Step-by-step civil filing process]
-
-### COMPENSATION CLAIMS
-- [List specific claim 1]
-- [List specific claim 2]
-
-### EVIDENCE NEEDED
-- [List evidence item 1]
-- [List evidence item 2]
-
-### PRACTICAL STEPS
-1. [Step 1]
-2. [Step 2]
-3. [Step 3]
-4. [Step 4]
-5. [Step 5]
-6. [Step 6]
-
-Context (relevant law sections):
-{context}
-
-User Query:
-{query}
-"""
-            
-            response = model.generate_content(prompt, timeout=30)
-            return response.text
-        
+            print("  -> Trying local Ollama...")
+            prompt = f"{SYSTEM_PROMPT}\n\n{user_prompt}"
+            return self._retry(lambda: self._call_ollama(prompt))
         except Exception as e:
-            print(f"⚠️  Gemini unavailable: {type(e).__name__}")
-            return self.get_ollama_response(context, query)
-    
-    def get_ollama_response(self, context: str, query: str) -> str:
-        """Call local Ollama (Qwen3:4b) - Fallback"""
-        try:
-            import requests
-            
-            prompt = f"""You are an elite Indian Legal AI assistant. Resolve the user's issue with high legal accuracy and clean formatting.
+            print(f"  \u26a0\ufe0f Ollama unavailable: {e}")
+            print("  \u21aa  Using static error response...")
+            return str(LLM_TIMEOUT_ERR)
 
-STRICT COMPLIANCE RULES:
-1. NEVER leave blank headers or empty asterisks like '**, Section...'. Ensure every single bullet point has complete, non-truncated text.
-2. THE IPC IS REPLACED. As of July 1, 2024, the Indian Penal Code (IPC) was replaced by Bharatiya Nyaya Sanhita (BNS), 2023. You MUST map all criminal sections to BNS 2023:
-   - Replace IPC 420 with BNS Section 318 (Cheating).
-   - Replace IPC 499/500 with BNS Section 356 (Defamation).
-   - Replace IPC 503/506 with BNS Section 351 (Criminal Intimidation).
-   - Replace IPC 378/379 with BNS Section 303 (Theft).
-   - Replace IPC 302 with BNS Section 103 (Murder).
-   - Replace CrPC with BNSS 2023 (Bharatiya Nagarik Suraksha Sanhita).
-   - Replace Evidence Act with BSA 2023 (Bharatiya Sakshya Adhiniyam).
-3. If retrieved context documents contain older IPC sections, state: 'Under BNS 2023 (formerly IPC Section X)...'.
-
-You MUST structure your response exactly using these headers:
-### SHORT ANSWER
-[Provide a concise 2-3 sentence summary answer]
-
-### IS THIS ILLEGAL?
-[Explain if the action is illegal and cite BNS 2023 and relevant special laws]
-
-### CRIMINAL ROUTE
-- Sections: [List applicable BNS 2023 sections]
-- Penalties: [List penalties/imprisonment terms]
-- Procedure: [Step-by-step BNSS 2023 criminal process]
-
-### CIVIL ROUTE
-- Remedies: [List civil remedies/injunctions]
-- Compensation Range: [Estimated compensation or damages]
-- Procedure: [Step-by-step civil filing process]
-
-### COMPENSATION CLAIMS
-- [List specific claim 1]
-- [List specific claim 2]
-
-### EVIDENCE NEEDED
-- [List evidence item 1]
-- [List evidence item 2]
-
-### PRACTICAL STEPS
-1. [Step 1]
-2. [Step 2]
-3. [Step 3]
-4. [Step 4]
-5. [Step 5]
-6. [Step 6]
-
-Context:
-{context}
-
-Query: {query}
-"""
-            
-            response = requests.post(
-                f"{self.ollama_url}/api/generate",
-                json={
-                    "model": self.ollama_model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "temperature": 0.1
-                },
-                timeout=self.ollama_timeout
-            )
-            
-            if response.status_code == 200:
-                result = response.json().get("response", "No response from model")
-                return result
-            else:
-                return f"⚠️  Ollama error: {response.status_code}"
-        
-        except requests.exceptions.ConnectionError:
-            return "❌ Ollama not running. Start Ollama before using courtRoom.ai"
-        except Exception as e:
-            return f"❌ Error: {str(e)}"
-    
-    def generate_response(self, context: str, query: str) -> str:
-        """Route to Gemini, fallback to Ollama"""
-        if self.provider.lower() == "ollama":
-            # Force Ollama mode
-            return self.get_ollama_response(context, query)
-        else:
-            # Default: try Gemini first
-            return self.get_gemini_response(context, query)
 
 if __name__ == "__main__":
     router = LLMRouter()
-    
+
     test_context = "Consumer Protection Act 2019 Section 35: Consumer can file complaint for defective products within 2 years"
     test_query = "I bought a defective phone. What can I do?"
-    
+
     response = router.generate_response(test_context, test_query)
     print(f"Response: {response}")

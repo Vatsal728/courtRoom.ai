@@ -1,281 +1,249 @@
-"""
-response_formatter.py - Format legal RAG responses with high accuracy
-"""
-
+import json
 import re
 from typing import List, Dict, Any
 
+
+def _clean_text(s: str) -> str:
+    """Strip markdown characters from LLM field text for plain-text display"""
+    s = re.sub(r"\*\*(.+?)\*\*", r"\1", s)
+    s = re.sub(r"\*(.+?)\*", r"\1", s)
+    s = re.sub(r"`(.+?)`", r"\1", s)
+    s = re.sub(r"^\s*#{1,6}\s*", "", s, flags=re.M)
+    s = re.sub(r"^\s*[-*+]\s+", "", s, flags=re.M)
+    s = re.sub(r"^\s*[>\u2192\u21d2]+\s*", "", s, flags=re.M)
+    return s.strip()
+
+
+def _get_str(d: dict, *keys: str, default: str = "") -> str:
+    for k in keys:
+        v = d.get(k)
+        if isinstance(v, str) and v.strip():
+            return _clean_text(v)
+    return default
+
+
+def _get_list(d: dict, *keys: str, default: list = None) -> list:
+    for k in keys:
+        v = d.get(k)
+        if isinstance(v, list) and v:
+            return [_clean_text(x) for x in v if str(x).strip()]
+    return default or []
+
+
+_ACT_ALIASES = {
+    "bnss": "code of criminal procedure", "crpc": "code of criminal procedure",
+    "bns": "bharatiya nyaya sanhita", "ipc": "indian penal code",
+    "bsa": "indian evidence act", "iea": "indian evidence act",
+    "nia": "negotiable instruments act", "hsa": "hindu succession act",
+    "hma": "hindu marriage act", "cpa": "consumer protection act",
+    "ida": "industrial disputes act", "mva": "motor vehicles act",
+    "pwa": "payment of wages act", "mwa": "minimum wages act",
+    "coi": "constitution of india", "rti": "right to information",
+    "it act": "information technology act",
+}
+
+
+def _filter_sections(sections: list, sources: List[Dict]) -> list:
+    """Keep only LLM-cited sections that actually exist in the retrieved sources.
+    Drops hallucinated section numbers and numberless vagueness."""
+    if not sections:
+        return sections
+    valid = []
+    for s in sources:
+        act = str(s.get("act_name") or s.get("source_act") or "").lower().strip()
+        num = re.sub(r"[^0-9]", "", str(s.get("section_number") or s.get("section") or ""))
+        if act and num:
+            valid.append((act, num))
+
+    def act_of(sec_lower: str) -> str:
+        for alias, full in _ACT_ALIASES.items():
+            if alias in sec_lower:
+                return full
+        for vact, _ in valid:
+            first = vact.split()[0]
+            if first in sec_lower:
+                return vact
+        return ""
+
+    kept = []
+    for sec in sections:
+        m = re.search(r"\b(\d{1,4})(?:[a-z]|)\b", sec.lower())
+        if not m:
+            continue
+        num = m.group(1)
+        act = act_of(sec.lower())
+        matches = [(va, vn) for va, vn in valid if vn == num and (not act or va.startswith(act) or act in va)]
+        if matches:
+            kept.append(sec)
+    return kept
+
+
+def _filter_citations(items: list, sources: List[Dict]) -> list:
+    """Keep only entries that either cite no section number, or cite a section
+    number that exists in the retrieved sources. Kills hallucinated
+    numbers in free-text fields like penalties."""
+    if not items:
+        return items
+    valid_nums = set()
+    for s in sources:
+        num = re.sub(r"[^0-9]", "", str(s.get("section_number") or s.get("section") or ""))
+        if num:
+            valid_nums.add(num)
+    kept = []
+    for it in items:
+        nums = re.findall(r"\b\d{1,4}\b", it)
+        if nums and not all(n in valid_nums for n in nums):
+            continue
+        kept.append(it)
+    return kept
+
+
+def _get_criminal_route(data: dict, sources: List[Dict]) -> Dict[str, Any]:
+    cr = data.get("criminal_route", {})
+    if not isinstance(cr, dict):
+        cr = {}
+    sections = _filter_sections(_get_list(cr, "applicable_sections"), sources)
+    if not sections:
+        # LLM often cites sections in prose but leaves the array empty;
+        # fall back to the top penal-act sources (all real, from retrieval).
+        for s in sources:
+            act = str(s.get("act_name") or s.get("source_act") or "")
+            low = act.lower()
+            if any(k in low for k in (
+                "bharatiya nyaya", "indian penal", "negotiable instruments",
+                "information technology", "code of criminal procedure",
+            )):
+                num = s.get("section_number") or s.get("section")
+                if num:
+                    num = re.sub(r"^(?:section|sec\.?|s\.?)\s*", "", str(num), flags=re.I)
+                    sections.append(f"{act.split(' (')[0]} Section {num}")
+            if len(sections) >= 3:
+                break
+    return {
+        "applicable_sections": sections,
+        "penalties": _filter_citations(_get_list(cr, "penalties"), sources),
+        "procedure": _filter_citations(_get_list(cr, "procedure"), sources)
+    }
+
+
+def _get_civil_route(data: dict) -> Dict[str, Any]:
+    cr = data.get("civil_route", {})
+    if not isinstance(cr, dict):
+        cr = {}
+    return {
+        "remedies": _get_list(cr, "remedies"),
+        "compensation_range": _get_str(cr, "compensation_range", "compensation"),
+        "procedure": _get_list(cr, "procedure")
+    }
+
+
+def _format_markdown(short_answer: str, is_this_illegal: str, criminal_route: dict, civil_route: dict,
+                     compensation_claims: list, evidence_needed: list, practical_steps: list) -> str:
+    def numbered(items: list, indent: str = "   ") -> str:
+        return "\n".join(f"{indent}{i + 1}. {item}" for i, item in enumerate(items))
+
+    crim_proc = numbered(criminal_route["procedure"])
+    civ_proc = numbered(civil_route["procedure"])
+    comp = "\n".join(f"• {c}" for c in compensation_claims)
+    evid = "\n".join(f"• {e}" for e in evidence_needed)
+    steps = numbered(practical_steps, indent="")
+    sections = ", ".join(criminal_route["applicable_sections"])
+    penalties = ", ".join(criminal_route["penalties"])
+    remedies = ", ".join(civil_route["remedies"])
+
+    parts = [f"SHORT ANSWER\n{short_answer}", f"IS THIS ILLEGAL?\n{is_this_illegal}"]
+
+    parts.append("CRIMINAL ROUTE")
+    if sections:
+        parts.append(f"• Applicable Sections: {sections}")
+    if penalties:
+        parts.append(f"• Penalties: {penalties}")
+    if crim_proc:
+        parts.append("• Procedure:\n" + crim_proc)
+
+    parts.append("CIVIL ROUTE")
+    if remedies:
+        parts.append(f"• Remedies: {remedies}")
+    if civil_route["compensation_range"]:
+        parts.append(f"• Compensation Range: {civil_route['compensation_range']}")
+    if civ_proc:
+        parts.append("• Procedure:\n" + civ_proc)
+
+    if comp:
+        parts.append("COMPENSATION CLAIMS\n" + comp)
+    if evid:
+        parts.append("EVIDENCE CHECKLIST\n" + evid)
+    if steps:
+        parts.append("PRACTICAL STEPS (ACTION PLAN)\n" + steps)
+
+    return "\n\n".join(parts)
+
+
+def _build_applicable_laws(sources: List[Dict]) -> Dict[str, list]:
+    laws = {}
+    for s in sources:
+        act = s.get("act_name") or s.get("source_act") or s.get("source") or "General Law"
+        sec = s.get("section_number") or s.get("section") or "General Provision"
+        laws.setdefault(act, []).append(sec)
+    return laws
+
+
+def _build_formatted_sources(sources: List[Dict]) -> List[Dict]:
+    return [{
+        "section": s.get("section_number") or s.get("section") or "Unknown",
+        "section_title": s.get("section_title") or "",
+        "topic": s.get("topic") or "General",
+        "source_act": s.get("act_name") or s.get("source_act") or s.get("source") or "Unknown Act",
+        "courts": s.get("applicable_courts") or s.get("courts") or ["District Court"],
+        "keywords": s.get("keywords") or [],
+        "content_preview": (s.get("content") or s.get("text") or "")[:300],
+        "content": s.get("content") or s.get("text") or ""
+    } for s in sources]
+
+
 class ResponseFormatter:
-    """Formatter to standardize responses in the NyayGuru style"""
-    
-    def __init__(self):
-        pass
-        
-    def format_response(self, query: str, llm_response: str, sources: List[Dict], domain: str, confidence: float) -> Dict[str, Any]:
-        """Format raw LLM text and sources into a structured NyayGuru API response"""
-        
-        # Clean up empty asterisks or broken markdown tokens and translate legacy IPC to BNS 2023
-        def clean_markdown(text: str) -> str:
-            if not text:
-                return text
-            # Fix empty bold tokens like '**, Section...' -> 'Section...'
-            text = re.sub(r'\*\*\s*,?\s*', '', text)
-            # Fix empty numbered lists like '1. **' -> '1. '
-            text = re.sub(r'(\d+\.)\s*\*\*\s*', r'\1 ', text)
-            # Replace IPC references with BNS 2023 equivalents
-            ipc_bns_map = {
-                r'\bIPC\s*420\b': 'BNS 2023 Section 318 (formerly IPC 420)',
-                r'\bIPC\s*(?:499|500)\b': 'BNS 2023 Section 356 (formerly IPC 499/500)',
-                r'\bIPC\s*(?:503|506)\b': 'BNS 2023 Section 351 (formerly IPC 503/506)',
-                r'\bIPC\s*(?:378|379)\b': 'BNS 2023 Section 303 (formerly IPC 378/379)',
-                r'\bIPC\s*302\b': 'BNS 2023 Section 103 (formerly IPC 302)',
-                r'\bCrPC\b': 'BNSS 2023 (formerly CrPC)',
-                r'\bIndian Evidence Act\b': 'BSA 2023 (formerly Indian Evidence Act)'
-            }
-            for pattern, replacement in ipc_bns_map.items():
-                text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
-            return text.strip()
+    """Format LLM JSON response into structured NyayGuru-style output"""
 
-        # Helper to extract content under markdown headers flexibly
-        def extract_section(header_name: str, default_text: str = "") -> str:
-            pattern = rf"(?:^|\n)#*\s*\*{{0,2}}{header_name}\*{{0,2}}\s*:?\s*\n?(.*?)(?=\n#+|\n\*\*|$)"
-            match = re.search(pattern, llm_response, re.IGNORECASE | re.DOTALL)
-            if match:
-                res = match.group(1).strip()
-                if res:
-                    return clean_markdown(res)
-            return clean_markdown(default_text)
+    def format_response(self, query: str, llm_response: str, sources: List[Dict],
+                        domain: str, confidence: float) -> Dict[str, Any]:
+        data = {}
+        if llm_response and llm_response.strip():
+            try:
+                cleaned = re.sub(r'```(?:json)?\n?', '', llm_response).strip()
+                data = json.loads(cleaned)
+            except (json.JSONDecodeError, TypeError):
+                pass
 
-        # 1. Extract short answer (fallback to full LLM response if empty)
-        short_answer = extract_section("SHORT ANSWER", "")
-        if not short_answer:
-            short_answer = clean_markdown(llm_response)
-        
-        # 2. Extract legality
-        is_this_illegal = extract_section("IS THIS ILLEGAL?", f"Yes, the described actions involve legal provisions under the jurisdiction of {domain.upper()} law and Bharatiya Nyaya Sanhita (BNS) 2023.")
-        
-        # 3. Extract Criminal Route
-        criminal_text = extract_section("CRIMINAL ROUTE")
-        criminal_sections = []
-        criminal_penalties = []
-        criminal_procedure = []
-        
-        if criminal_text:
-            for line in criminal_text.split("\n"):
-                line = clean_markdown(line.strip().lstrip("-*• ").strip())
-                if not line:
-                    continue
-                if line.lower().startswith("sections:"):
-                    criminal_sections = [clean_markdown(x.strip()) for x in line.split(":", 1)[1].split(",")]
-                elif line.lower().startswith("penalties:"):
-                    criminal_penalties = [clean_markdown(x.strip()) for x in line.split(":", 1)[1].split(",")]
-                elif line.lower().startswith("procedure:"):
-                    criminal_procedure = [clean_markdown(x.strip()) for x in line.split(":", 1)[1].split(";")]
-                else:
-                    if "section" in line.lower() or "bns" in line.lower() or "ipc" in line.lower():
-                        criminal_sections.append(line)
-                    elif "prison" in line.lower() or "fine" in line.lower() or "punish" in line.lower():
-                        criminal_penalties.append(line)
-                    else:
-                        criminal_procedure.append(line)
+        short_answer = _get_str(data, "short_answer", default=llm_response[:500] if llm_response else "")
+        is_this_illegal = _get_str(data, "is_this_illegal")
+        criminal_route = _get_criminal_route(data, sources)
+        civil_route = _get_civil_route(data)
+        compensation_claims = _get_list(data, "compensation_claims")
+        evidence_needed = _get_list(data, "evidence_needed")
+        practical_steps = _get_list(data, "practical_steps")[:6]
 
-        if not criminal_sections:
-            criminal_sections = ["BNS 2023 Section 356 (Defamation) / BNS 2023 Section 351 (Criminal Intimidation)"]
-        if not criminal_penalties:
-            criminal_penalties = ["Imprisonment or fine as specified under BNS 2023"]
-        if not criminal_procedure:
-            criminal_procedure = [
-                "File a First Information Report (FIR) at nearest police station under BNSS 2023",
-                "Ensure police registers the crime under appropriate BNS 2023 sections",
-                "Cooperatively assist investigation officers with evidence"
-            ]
-
-        criminal_route = {
-            "applicable_sections": criminal_sections,
-            "penalties": criminal_penalties,
-            "procedure": criminal_procedure
-        }
-
-        # 4. Extract Civil Route
-        civil_text = extract_section("CIVIL ROUTE")
-        civil_remedies = []
-        civil_compensation = "To be claimed based on actual damages"
-        civil_procedure = []
-        
-        if civil_text:
-            for line in civil_text.split("\n"):
-                line = clean_markdown(line.strip().lstrip("-*• ").strip())
-                if not line:
-                    continue
-                if line.lower().startswith("remedies:"):
-                    civil_remedies = [clean_markdown(x.strip()) for x in line.split(":", 1)[1].split(",")]
-                elif line.lower().startswith("compensation range:") or line.lower().startswith("compensation:"):
-                    civil_compensation = clean_markdown(line.split(":", 1)[1].strip())
-                elif line.lower().startswith("procedure:"):
-                    civil_procedure = [clean_markdown(x.strip()) for x in line.split(":", 1)[1].split(";")]
-                else:
-                    if "remedy" in line.lower() or "injunction" in line.lower() or "damages" in line.lower():
-                        civil_remedies.append(line)
-                    else:
-                        civil_procedure.append(line)
-                        
-        if not civil_remedies:
-            civil_remedies = ["Injunction orders", "Declaration of rights", "Compensation claim"]
-        if not civil_procedure:
-            civil_procedure = [
-                "Draft and send a formal legal notice requesting remedy",
-                "If unresolved within notice period, file a civil suit in competent court",
-                "Seek temporary injunction orders for immediate relief"
-            ]
-
-        civil_route = {
-            "remedies": civil_remedies,
-            "compensation_range": civil_compensation,
-            "procedure": civil_procedure
-        }
-
-        # 5. Extract Compensation Claims
-        compensation_text = extract_section("COMPENSATION CLAIMS")
-        compensation_claims = []
-        if compensation_text:
-            for line in compensation_text.split("\n"):
-                line = clean_markdown(line.strip().lstrip("-*• ").strip())
-                if line:
-                    compensation_claims.append(line)
-        if not compensation_claims:
-            compensation_claims = [
-                "Mental agony and harassment compensation",
-                "Direct financial loss reimbursement",
-                "Legal costs and suit expenses compensation"
-            ]
-
-        # 6. Extract Evidence Needed
-        evidence_text = extract_section("EVIDENCE NEEDED")
-        evidence_needed = []
-        if evidence_text:
-            for line in evidence_text.split("\n"):
-                line = clean_markdown(line.strip().lstrip("-*• ").strip())
-                if line:
-                    evidence_needed.append(line)
-        if not evidence_needed:
-            evidence_needed = [
-                "Copy of contract or agreement details",
-                "Written notices, emails, or WhatsApp chats between parties",
-                "Bank statements showing payments or transactions",
-                "Photographic or digital proof of violation if applicable"
-            ]
-
-        # 7. Extract Practical Steps (Guaranteed exactly 6 items)
-        steps_text = extract_section("PRACTICAL STEPS")
-        practical_steps = []
-        if steps_text:
-            for line in steps_text.split("\n"):
-                line = clean_markdown(re.sub(r'^\d+\.\s*', '', line.strip()).lstrip("-*• ").strip())
-                if line:
-                    practical_steps.append(line)
-                    
-        default_steps = [
-            "Send a formal legal notice outlining claims and giving a 15-day timeline",
-            "Collect and organize all physical/digital evidence as per checklist",
-            "File an official complaint with the respective local cell (cyber cell, labor board, consumer forum)",
-            "Draft a detailed civil plaint with help of a legal professional",
-            "Submit the plaint in court and secure an initial hearing date",
-            "Follow up on court summons and prepare for trial arguments"
-        ]
-        
-        while len(practical_steps) < 6:
-            practical_steps.append(default_steps[len(practical_steps)])
-        practical_steps = practical_steps[:6]
-
-        # 8. Extract Applicable Laws mapping
-        applicable_laws = {}
-        for s in sources:
-            act_name = clean_markdown(s.get("act_name") or s.get("source_act") or s.get("source") or "General Law")
-            section = clean_markdown(s.get("section_number") or s.get("section") or "General Provision")
-            if act_name not in applicable_laws:
-                applicable_laws[act_name] = []
-            if section not in applicable_laws[act_name]:
-                applicable_laws[act_name].append(section)
-                
-        if not applicable_laws:
-            applicable_laws = {"Bharatiya Nyaya Sanhita (BNS) 2023": ["Section 356", "Section 351"]}
-
-        formatted_sources = []
-        for s in sources:
-            formatted_sources.append({
-                "section": clean_markdown(s.get("section_number") or s.get("section") or "Unknown"),
-                "topic": clean_markdown(s.get("topic") or "General"),
-                "source_act": clean_markdown(s.get("act_name") or s.get("source_act") or s.get("source") or "Unknown Act"),
-                "courts": s.get("applicable_courts") or s.get("courts") or ["District Court"],
-                "keywords": s.get("keywords") or s.get("relevance_keywords") or [],
-                "content_preview": clean_markdown(s.get("content") or s.get("text") or "")
-            })
-
-        # Construct the rich NyayGuru Markdown report string
-        crim_proc_str = "\n".join([f"  1. {p}" for p in criminal_route['procedure']])
-        civ_proc_str = "\n".join([f"  1. {p}" for p in civil_route['procedure']])
-        comp_str = "\n".join([f"* {c}" for c in compensation_claims])
-        evid_str = "\n".join([f"* {e}" for e in evidence_needed])
-        steps_str = "\n".join([f"{i+1}. {step}" for i, step in enumerate(practical_steps)])
-
-        formatted_markdown_report = f"""### 📌 SHORT ANSWER
-{short_answer}
-
-### ⚖️ IS THIS ILLEGAL?
-{is_this_illegal}
-
----
-
-### 🚨 CRIMINAL ROUTE
-* **Applicable Sections:** {', '.join(criminal_route['applicable_sections'])}
-* **Penalties:** {', '.join(criminal_route['penalties'])}
-* **Procedure:**
-{crim_proc_str}
-
----
-
-### 📜 CIVIL ROUTE
-* **Remedies:** {', '.join(civil_route['remedies'])}
-* **Compensation Range:** {civil_route['compensation_range']}
-* **Procedure:**
-{civ_proc_str}
-
----
-
-### 💰 COMPENSATION CLAIMS
-{comp_str}
-
----
-
-### 📁 EVIDENCE CHECKLIST
-{evid_str}
-
----
-
-### 📋 PRACTICAL STEPS (ACTION PLAN)
-{steps_str}"""
-
-        formatted_markdown_report = clean_markdown(formatted_markdown_report)
+        markdown = _format_markdown(short_answer, is_this_illegal, criminal_route, civil_route,
+                                    compensation_claims, evidence_needed, practical_steps)
 
         return {
             "query": query,
             "response_type": domain,
             "confidence_score": confidence,
             "short_answer": short_answer,
-            "full_response": formatted_markdown_report,
-            "response": formatted_markdown_report,
+            "full_response": markdown,
+            "response": markdown,
             "is_this_illegal": is_this_illegal,
             "criminal_route": criminal_route,
             "civil_route": civil_route,
             "practical_steps": practical_steps,
             "compensation_claims": compensation_claims,
             "evidence_needed": evidence_needed,
-            "applicable_laws": applicable_laws,
-            "sources": formatted_sources,
+            "applicable_laws": _build_applicable_laws(sources),
+            "sources": _build_formatted_sources(sources),
             "status": "success"
         }
 
-def format_legal_response(query: str, llm_response: str, sources: List[Dict], domain: str, confidence: float) -> Dict[str, Any]:
-    """Compatibility function mapping format_legal_response requests"""
-    formatter = ResponseFormatter()
-    return formatter.format_response(query, llm_response, sources, domain, confidence)
+
+def format_legal_response(query: str, llm_response: str, sources: List[Dict],
+                          domain: str, confidence: float) -> Dict[str, Any]:
+    return ResponseFormatter().format_response(query, llm_response, sources, domain, confidence)
