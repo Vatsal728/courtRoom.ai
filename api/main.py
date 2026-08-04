@@ -2,6 +2,7 @@ import sys
 import os
 import uuid
 import time
+import json
 import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -10,7 +11,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from fastapi import FastAPI, HTTPException, Request, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Dict, Optional, List
 from dotenv import load_dotenv
@@ -25,6 +26,10 @@ from src.agents.rti_agent import RTIApplicationAgent
 from src.agents.deadline_agent import DeadlineTrackerAgent
 from src.case_service import CaseService
 from src.evidence_service import EvidenceService
+from src.analytics_service import AnalyticsService
+from src.training_service import TrainingService
+from src.translator import get_translator, has_non_latin_script, detect_language
+from src.response_formatter import format_legal_response
 from api.auth import router as auth_router
 from config import API_CONFIG, MONGODB_CONFIG
 
@@ -69,12 +74,14 @@ _deadline_agent = None
 _storage = None
 _case_service = None
 _evidence_service = None
+_analytics_service = None
+_training_service = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _rag_system, _notice_agent, _evidence_agent, _rti_agent, _deadline_agent, _storage
-    global _case_service, _evidence_service
+    global _case_service, _evidence_service, _analytics_service, _training_service
     log.info("Starting courtRoom.ai API...")
     try:
         _rag_system = FullRAGSystem()
@@ -88,6 +95,8 @@ async def lifespan(app: FastAPI):
     _storage = _QueryStorage()
     _case_service = CaseService()
     _evidence_service = EvidenceService(_case_service)
+    _analytics_service = AnalyticsService()
+    _training_service = TrainingService()
     yield
     log.info("Shutting down courtRoom.ai API...")
 
@@ -258,6 +267,62 @@ class _QueryStorage:
         return pdfs
 
 
+# ── Translation helpers ─────────────────────────────────────────
+def _resolve_target_language(query: str, requested: str) -> str:
+    """Effective answer language for a query.
+
+    The dropdown selection wins; when it is English but the query was typed
+    in an Indian script (Gujarati/Hindi/etc.), auto-detect the language and
+    answer in it, so no manual selection is needed.
+    """
+    requested = (requested or "en").strip().lower()
+    if requested != "en":
+        return requested
+    detected = detect_language(query or "")
+    return detected if detected != "en" else "en"
+
+
+def _translate_result(result: dict, lang: str, translator) -> None:
+    """Translate the structured answer + source previews into `lang`, in place.
+
+    Full statute text in sources stays English to keep translation fast.
+    Original English values are preserved under original_* keys.
+    """
+    if lang in (None, "", "en"):
+        return
+
+    def _keep_original(key: str, val):
+        result.setdefault(f"original_{key}", val)
+
+    short = result.get("short_answer")
+    if isinstance(short, str) and short.strip():
+        _keep_original("short_answer", short)
+        result["short_answer"] = translator.answer_in_language(short, lang)
+
+    full = result.get("full_response") or result.get("response")
+    if isinstance(full, str) and full.strip():
+        _keep_original("full_response", full)
+        translated_full = translator.answer_in_language(full, lang)
+        result["full_response"] = translated_full
+        result["response"] = translated_full
+
+    sources = result.get("sources")
+    if isinstance(sources, list):
+        _keep_original("sources", sources)
+        translated_sources = []
+        for s in sources:
+            ts = dict(s)
+            for field in ("section_title", "topic"):
+                val = ts.get(field)
+                if isinstance(val, str) and val.strip():
+                    ts[field] = translator.answer_in_language(val, lang)
+            preview = ts.get("content_preview")
+            if isinstance(preview, str) and preview.strip():
+                ts["content_preview"] = translator.answer_in_language(preview, lang)
+            translated_sources.append(ts)
+        result["sources"] = translated_sources
+
+
 # ── Endpoints ────────────────────────────────────────────────────
 @app.get("/live-location/data")
 async def live_location_stub(request: Request):
@@ -302,7 +367,17 @@ async def health_check(request: Request):
 async def process_query(req: QueryRequest, request: Request, rag: FullRAGSystem = Depends(get_rag),
                         storage: _QueryStorage = Depends(get_storage)):
     try:
-        result = rag.process_query(req.query)
+        translator = get_translator()
+        original_query = req.query
+        query_to_process = req.query
+        target_lang = _resolve_target_language(req.query, req.language)
+
+        if target_lang != "en" and has_non_latin_script(req.query):
+            translated_query = translator.query_to_english(req.query, target_lang)
+            if translated_query != req.query:
+                query_to_process = translated_query
+
+        result = rag.process_query(query_to_process)
         if result.get("status") == "failed":
             return result
         if not result.get("response") or not str(result.get("response")).strip():
@@ -310,8 +385,13 @@ async def process_query(req: QueryRequest, request: Request, rag: FullRAGSystem 
         result["domain"] = result.get("response_type")
         result["confidence"] = result.get("confidence_score")
 
+        if target_lang != "en":
+            _translate_result(result, target_lang, translator)
+            result["query_language"] = target_lang
+            result["translated"] = True
+
         query_id = storage.store_query("anonymous", {
-            "query": req.query,
+            "query": original_query,
             "domain": result.get("response_type"),
             "confidence": result.get("confidence_score"),
             "response": result.get("response"),
@@ -326,6 +406,90 @@ async def process_query(req: QueryRequest, request: Request, rag: FullRAGSystem 
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/query/stream")
+@limiter_decorator()
+async def stream_query(req: QueryRequest, request: Request, rag: FullRAGSystem = Depends(get_rag),
+                       storage: _QueryStorage = Depends(get_storage)):
+    translator = get_translator()
+    original_query = req.query
+    target_lang = _resolve_target_language(req.query, req.language)
+
+    def sse(event: str, data) -> str:
+        return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+    async def event_stream():
+        try:
+            query_to_process = original_query
+            if target_lang != "en" and has_non_latin_script(original_query):
+                yield sse("status", {"step": "translating", "message": f"Reading your question in {target_lang.upper()}..."})
+                translated_query = translator.query_to_english(original_query, target_lang)
+                if translated_query != original_query:
+                    query_to_process = translated_query
+
+            yield sse("status", {"step": "retrieving", "message": "Searching applicable laws..."})
+            domain, domain_confidence, _ = rag.domain_classifier.classify(query_to_process)
+            sources = rag.improved_rag.retrieve_with_metadata(query_to_process, top_k=5)
+            context = "\n\n".join(
+                f"[{s.get('act_name') or s.get('source_act')} Section "
+                f"{s.get('section_number') or s.get('section')} - {s.get('section_title') or ''}]\n{s['content']}"
+                for s in sources
+            )
+            available = "\n".join(
+                f"{s.get('act_name') or s.get('source_act')} Section "
+                f"{s.get('section_number') or s.get('section')}: {s.get('section_title') or ''}"
+                for s in sources
+            )
+
+            yield sse("status", {"step": "generating", "message": "Generating legal analysis..."})
+            llm_parts = []
+            async for piece in rag.llm_router.stream_generate(context, query_to_process, available):
+                llm_parts.append(piece)
+                if await request.is_disconnected():
+                    return
+                yield sse("token", {"text": piece})
+
+            llm_response = "".join(llm_parts).strip()
+            if not llm_response:
+                raise Exception("No output generated by the language model.")
+
+            yield sse("status", {"step": "formatting", "message": "Finalizing your answer..."})
+            result = format_legal_response(
+                query=query_to_process,
+                llm_response=llm_response,
+                sources=sources,
+                domain=domain,
+                confidence=domain_confidence
+            )
+            if not result.get("response"):
+                result["response"] = result.get("full_response") or result.get("short_answer") or "No output could be generated for this query."
+            result["domain"] = result.get("response_type")
+            result["confidence"] = result.get("confidence_score")
+
+            if target_lang != "en":
+                yield sse("status", {"step": "translating", "message": f"Translating answer to {target_lang.upper()}..."})
+                _translate_result(result, target_lang, translator)
+                result["query_language"] = target_lang
+                result["translated"] = True
+
+            query_id = storage.store_query("anonymous", {
+                "query": original_query,
+                "domain": result.get("response_type"),
+                "confidence": result.get("confidence_score"),
+                "response": result.get("response"),
+                "full_response": result,
+                "sources": result.get("sources", [])
+            })
+            result["query_id"] = query_id
+            result["stored"] = True
+
+            yield sse("final", result)
+        except Exception as e:
+            logger.exception("stream query failed")
+            yield sse("error", {"detail": str(e)})
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @app.post("/generate-notice")
@@ -505,6 +669,24 @@ async def delete_evidence(file_id: str):
     if not _evidence_service.delete_evidence(file_id):
         raise HTTPException(status_code=404, detail="Evidence file not found")
     return {"status": "success", "deleted": file_id}
+
+
+# ── Analytics (Phase 13) ───────────────────────────────────────────
+@app.get("/analytics/overview")
+async def analytics_overview(days: int = 30):
+    return _analytics_service.overview(days=days)
+
+
+# ── Training Data Export (Phase 19) ───────────────────────────────
+@app.post("/training/export-dataset")
+async def export_training_dataset(
+    output_path: str = "training_data.jsonl",
+    min_confidence: float = 0.5
+):
+    return _training_service.export_dataset(
+        output_path=output_path,
+        min_confidence=min_confidence
+    )
 
 
 if __name__ == "__main__":

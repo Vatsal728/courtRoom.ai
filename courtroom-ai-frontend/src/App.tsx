@@ -2,14 +2,18 @@ import {
   AlertCircle,
   Check,
   ChevronDown,
+  Copy,
   Download,
   FileText,
   Loader,
   LogOut,
   MessageSquare,
   MoreHorizontal,
+  Pencil,
   Plus,
-  Scale, Send,
+  Scale,
+  Send,
+  Square,
   Trash2,
   X,
   Zap
@@ -23,10 +27,11 @@ import {
   getEvidenceChecklist,
   getUserPDFs,
   healthCheck,
-  submitQuery
+  streamQuery
 } from './lib/api';
 import { AuthContext, AuthProvider, useAuth } from './lib/auth';
-import { detectLanguage } from './lib/language';
+import type { Language } from './lib/language';
+import { LanguageDropdown } from './components/LanguageDropdown';
 
 const shortTitle = (t: string) => (t.length > 42 ? `${t.slice(0, 39)}…` : t);
 
@@ -209,6 +214,7 @@ function AppContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
+  const [targetLanguage, setTargetLanguage] = useState<Language>('en');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [artifactOpen, setArtifactOpen] = useState(false);
   const [expandedSource, setExpandedSource] = useState<string | null>(null);
@@ -249,9 +255,15 @@ function AppContent() {
   });
   const [backendStatus, setBackendStatus] = useState<string>('Checking...');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const bottomInputRef = useRef<HTMLTextAreaElement>(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [chatMenuId, setChatMenuId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // Streaming / generation control
+  const [draft, setDraft] = useState<{ id: string; text: string; status: string | null } | null>(null);
+  const [stopController, setStopController] = useState<AbortController | null>(null);
+  const [editingUserMessageId, setEditingUserMessageId] = useState<string | null>(null);
 
   // Freemium Gate
   const [freeQueriesCount, setFreeQueriesCount] = useState<number>(() => {
@@ -316,7 +328,7 @@ function AppContent() {
   // Auto scroll to bottom of chat
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, draft]);
 
   const handleSendMessage = useCallback(async () => {
     if (!inputValue.trim()) return;
@@ -327,55 +339,109 @@ function AppContent() {
       return;
     }
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: 'user',
-      content: inputValue,
-      timestamp: new Date(),
-    };
+    const userMessageId = Date.now().toString();
+    const queryText = inputValue;
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => {
+      const withoutEdited = editingUserMessageId ? prev.filter((m) => m.id !== editingUserMessageId) : prev;
+      return [...withoutEdited, { id: userMessageId, type: 'user', content: queryText, timestamp: new Date() }];
+    });
+    setEditingUserMessageId(null);
     setInputValue('');
     setLoading(true);
 
+    const draftId = `draft-${Date.now()}`;
+    const draftText = { current: '' };
+    setDraft({ id: draftId, text: '', status: 'Starting...' });
+
+    const controller = new AbortController();
+    setStopController(controller);
+
     try {
-      const detectedLang = detectLanguage(inputValue);
-      const activeUserId = auth.userId || 'anonymous';
-      const result = await submitQuery(inputValue, activeUserId, detectedLang);
+      await streamQuery(queryText, targetLanguage, {
+        onStatus: (_step, message) => {
+          setDraft((d) => (d ? { ...d, status: message || 'Working on it...' } : d));
+        },
+        onToken: (text) => {
+          draftText.current += text;
+          setDraft((d) => (d ? { ...d, text: draftText.current } : d));
+        },
+        onFinal: (data) => {
+          setDraft(null);
+          const assistantMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: data.response || data.full_response || draftText.current || 'No output could be generated.',
+            results: data.sources ?? [],
+            domain: data.domain,
+            confidence: data.confidence,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant',
-        content: result.response,
-        results: result.sources,
-        domain: result.domain,
-        confidence: result.confidence,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-
-      if (!auth.isLoggedIn) {
-        const nextCount = freeQueriesCount + 1;
-        setFreeQueriesCount(nextCount);
-        localStorage.setItem('free_queries_count', String(nextCount));
-      }
-
-      if (result.query_id) {
-        localStorage.setItem('lastQueryId', result.query_id);
-      }
+          if (!auth.isLoggedIn) {
+            const nextCount = freeQueriesCount + 1;
+            setFreeQueriesCount(nextCount);
+            localStorage.setItem('free_queries_count', String(nextCount));
+          }
+          if (data.query_id) {
+            localStorage.setItem('lastQueryId', data.query_id);
+          }
+        },
+        onError: (message) => {
+          setDraft(null);
+          const errMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: draftText.current
+              ? `${draftText.current}\n\n❌ ${message}`
+              : `❌ Error: ${message}`,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, errMessage]);
+        },
+      }, controller.signal);
     } catch (error) {
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant',
-        content: `❌ Error: ${error instanceof Error ? error.message : 'Failed to process query'}`,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      const aborted = error instanceof DOMException && error.name === 'AbortError';
+      setDraft(null);
+      if (draftText.current) {
+        const partial: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          content: draftText.current + (aborted ? '\n\n⏹ Generation stopped.' : ''),
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, partial]);
+      } else if (!aborted) {
+        const errMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          content: `❌ Error: ${error instanceof Error ? error.message : 'Failed to process query'}`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errMessage]);
+      }
     } finally {
       setLoading(false);
+      setStopController(null);
     }
-  }, [inputValue, auth.userId, freeQueriesCount, auth.isLoggedIn]);
+  }, [inputValue, auth.userId, freeQueriesCount, auth.isLoggedIn, targetLanguage, editingUserMessageId]);
+
+  const handleStop = useCallback(() => {
+    stopController?.abort();
+  }, [stopController]);
+
+  const handleEditMessage = useCallback((msgId: string, text: string) => {
+    setEditingUserMessageId(msgId);
+    setInputValue(text);
+    setActiveView('chat');
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => bottomInputRef.current?.focus(), 50);
+  }, []);
+
+  const handleCopyMessage = useCallback((text: string) => {
+    navigator.clipboard?.writeText(text).catch(() => {});
+  }, []);
 
   // Notice Form Submit
   const handleNoticeSubmit = async (e: React.FormEvent) => {
@@ -446,6 +512,49 @@ function AppContent() {
     localStorage.setItem(storageKey, JSON.stringify(chatSessions));
   }, [chatSessions, auth.userId]);
 
+  // Persist the active chat when the user leaves the site / hides the tab,
+  // so work is never lost even without clicking "New Chat".
+  const messagesRef = useRef(messages);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+  const chatSessionsRef = useRef(chatSessions);
+  useEffect(() => { chatSessionsRef.current = chatSessions; }, [chatSessions]);
+  const activeChatIdRef = useRef(activeChatId);
+  useEffect(() => { activeChatIdRef.current = activeChatId; }, [activeChatId]);
+  const userIdRef = useRef(auth.userId || 'anonymous');
+  useEffect(() => { userIdRef.current = auth.userId || 'anonymous'; }, [auth.userId]);
+
+  useEffect(() => {
+    const saveActiveChat = () => {
+      const msgs = messagesRef.current;
+      const key = `chat_sessions_v2_${userIdRef.current}`;
+      if (msgs.length === 0) return;
+      let next = chatSessionsRef.current;
+      const activeId = activeChatIdRef.current;
+      if (activeId) {
+        next = next.map((s) => (s.id === activeId ? { ...s, messages: msgs, timestamp: new Date() } : s));
+      } else {
+        const firstUser = msgs.find((m) => m.type === 'user');
+        const raw = firstUser?.content || 'New chat';
+        const title = raw.split(/\s+/).slice(0, 5).join(' ') || 'New chat';
+        next = [{ id: `saved-${Date.now()}`, title, messages: msgs, timestamp: new Date() }, ...next].slice(0, 50);
+      }
+      try {
+        localStorage.setItem(key, JSON.stringify(next));
+      } catch {
+        // ignore quota / serialization errors
+      }
+    };
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') saveActiveChat();
+    };
+    window.addEventListener('beforeunload', saveActiveChat);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('beforeunload', saveActiveChat);
+      document.removeEventListener('visibilitychange', onHide);
+    };
+  }, []);
+
   const startNewChat = () => {
     if (messages.length > 0) {
       const firstUser = messages.find((m) => m.type === 'user');
@@ -458,6 +567,7 @@ function AppContent() {
     setActiveChatId(null);
     setExpandedSource(null);
     setInputValue('');
+    setEditingUserMessageId(null);
     setActiveView('chat');
   };
 
@@ -492,9 +602,9 @@ function AppContent() {
       {/* Sidebar */}
       <div
         className={`${sidebarOpen ? 'w-64' : 'w-0'
-          } bg-[#0b0f19] border-r border-[#21376d]/30 flex flex-col transition-all duration-300 overflow-hidden z-20`}
+          } bg-[#0b1126] border-r border-[#1e2e5c]/30 flex flex-col transition-all duration-300 overflow-hidden z-20`}
       >
-        <div className="p-4 border-b border-[#21376d]/20 flex items-center justify-between">
+        <div className="p-4 border-b border-[#1e2e5c]/20 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Scale className="w-5 h-5 text-amber-500" />
             <span className="text-base font-bold text-white">court<span className="text-amber-400">Room</span>.ai</span>
@@ -502,7 +612,7 @@ function AppContent() {
 
           <button
             onClick={() => setSidebarOpen(false)}
-            className="p-1.5 rounded-lg border border-slate-700 bg-slate-900/60 text-slate-400 hover:text-white hover:border-[#21376d] focus:outline-none focus:ring-2 focus:ring-[#21376d]/50 transition flex items-center justify-center cursor-pointer"
+            className="p-1.5 rounded-lg border border-slate-700 bg-slate-900/60 text-slate-400 hover:text-white hover:border-[#1e2e5c] focus:outline-none focus:ring-2 focus:ring-[#1e2e5c]/50 transition flex items-center justify-center cursor-pointer"
             title="Close sidebar"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -525,7 +635,7 @@ function AppContent() {
 
           <button
             onClick={() => { setActiveView('chat'); }}
-            className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'chat' ? 'bg-[#21376d]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#21376d]/10 hover:text-white'
+            className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'chat' ? 'bg-[#3a86ff]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#1e2e5c]/10 hover:text-white'
               }`}
           >
             {activeView === 'chat' && (
@@ -539,7 +649,7 @@ function AppContent() {
           <div className="pt-1.5">
             <button
               onClick={() => setArtifactOpen(!artifactOpen)}
-              className="w-full flex items-center justify-between pl-5 pr-4 py-2 rounded-lg text-[11px] font-bold text-slate-400 uppercase tracking-wider hover:bg-[#21376d]/10 hover:text-amber-400 transition cursor-pointer"
+              className="w-full flex items-center justify-between pl-5 pr-4 py-2 rounded-lg text-[11px] font-bold text-slate-400 uppercase tracking-wider hover:bg-[#1e2e5c]/10 hover:text-amber-400 transition cursor-pointer"
             >
               Artifact
               <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${artifactOpen ? 'rotate-180' : ''}`} />
@@ -548,7 +658,7 @@ function AppContent() {
               <div className="mt-1 space-y-1.5">
                 <button
                   onClick={() => { setActiveView('notice'); }}
-                  className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'notice' ? 'bg-[#21376d]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#21376d]/10 hover:text-white'
+                  className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'notice' ? 'bg-[#3a86ff]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#1e2e5c]/10 hover:text-white'
                     }`}
                 >
                   {activeView === 'notice' && (
@@ -559,7 +669,7 @@ function AppContent() {
                 </button>
                 <button
                   onClick={() => { setActiveView('evidence'); }}
-                  className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'evidence' ? 'bg-[#21376d]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#21376d]/10 hover:text-white'
+                  className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'evidence' ? 'bg-[#3a86ff]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#1e2e5c]/10 hover:text-white'
                     }`}
                 >
                   {activeView === 'evidence' && (
@@ -570,7 +680,7 @@ function AppContent() {
                 </button>
                 <button
                   onClick={() => { setActiveView('rti'); }}
-                  className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'rti' ? 'bg-[#21376d]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#21376d]/10 hover:text-white'
+                  className={`relative w-full flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${activeView === 'rti' ? 'bg-[#3a86ff]/20 text-amber-400 font-semibold shadow-sm' : 'text-slate-350 hover:bg-[#1e2e5c]/10 hover:text-white'
                     }`}
                 >
                   {activeView === 'rti' && (
@@ -585,7 +695,7 @@ function AppContent() {
         </div>
 
         {/* Sidebar Content (PDF Gen + Chat History) */}
-        <div className="flex-1 overflow-y-auto p-4 border-t border-[#21376d]/20">
+        <div className="flex-1 overflow-y-auto p-4 border-t border-[#1e2e5c]/20">
           <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider px-2 py-2 mb-1 mt-1">PDF Gen</div>
           <div className="space-y-1 mb-3">
             {userPDFs.slice(0, 5).map((pdf, idx) => (
@@ -612,7 +722,7 @@ function AppContent() {
           <div className="space-y-1">
             {chatSessions.slice(0, 5).map((session) => (
               <div key={session.id} className="relative">
-                <div className={`w-full flex items-start gap-2 p-2 rounded transition text-xs ${activeChatId === session.id ? 'bg-[#21376d]/25 border border-[#21376d]/40' : 'hover:bg-slate-700/50 border border-transparent'
+                <div className={`w-full flex items-start gap-2 p-2 rounded transition text-xs ${activeChatId === session.id ? 'bg-[#1e2e5c]/25 border border-[#1e2e5c]/40' : 'hover:bg-slate-700/50 border border-transparent'
                   }`}>
                   <button
                     onClick={() => { openChat(session); closeChatMenu(); }}
@@ -659,7 +769,7 @@ function AppContent() {
         </div>
 
         {/* Sidebar Footer - Profile Card */}
-        <div className="border-t border-[#21376d]/20 p-3.5 relative">
+        <div className="border-t border-[#1e2e5c]/20 p-3.5 relative">
           {/* Dropdown Popover */}
           {profileMenuOpen && (
             <div className="absolute bottom-16 left-3.5 right-3.5 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2.5 z-30 space-y-1">
@@ -668,7 +778,7 @@ function AppContent() {
                   setShowPDFModal(true);
                   setProfileMenuOpen(false);
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-300 hover:bg-[#21376d]/20 transition text-xs font-semibold cursor-pointer"
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-300 hover:bg-[#1e2e5c]/20 transition text-xs font-semibold cursor-pointer"
               >
                 <Download className="w-4 h-4 text-amber-500" />
                 All PDFs ({userPDFs.length})
@@ -684,7 +794,7 @@ function AppContent() {
           )}
 
           {/* Profile Row */}
-          <div className="flex items-center justify-between bg-slate-950 border border-[#21376d]/10 rounded-xl p-2 hover:bg-slate-900/60 transition">
+          <div className="flex items-center justify-between bg-slate-950 border border-[#1e2e5c]/10 rounded-xl p-2 hover:bg-slate-900/60 transition">
             <div className="flex items-center gap-2.5 truncate">
               {/* Avatar circle */}
               <div className="w-9 h-9 rounded-full bg-[#e6dfd5] text-slate-900 flex items-center justify-center font-bold text-sm shadow-inner flex-shrink-0 select-none">
@@ -742,6 +852,12 @@ function AppContent() {
           </div>
 
           <div className="flex items-center gap-3">
+            <LanguageDropdown
+              value={targetLanguage}
+              onChange={setTargetLanguage}
+              placeholder="Language"
+              buttonClassName="min-w-[130px] px-3 py-1.5"
+            />
             <div className="text-right">
               <p className="text-xs font-bold text-white">{auth.userName || 'User'}</p>
               {auth.email && <p className="text-[10px] text-slate-400">{auth.email}</p>}
@@ -802,13 +918,23 @@ function AppContent() {
                           <span className="text-[10px] text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 font-mono">
                             Qwen 2.5 Law
                           </span>
-                          <button
-                            onClick={handleSendMessage}
-                            disabled={loading || !inputValue.trim()}
-                            className="p-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 transition disabled:opacity-30 disabled:hover:bg-amber-500 flex items-center justify-center cursor-pointer"
-                          >
-                            <Send className="w-3.5 h-3.5" />
-                          </button>
+                          {loading ? (
+                            <button
+                              onClick={handleStop}
+                              className="p-1.5 rounded-full bg-[#3a86ff] hover:bg-[#5b98ff] text-white transition flex items-center justify-center cursor-pointer"
+                              title="Stop generating"
+                            >
+                              <Square className="w-3.5 h-3.5" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={handleSendMessage}
+                              disabled={!inputValue.trim()}
+                              className="p-1.5 rounded-full bg-[#3a86ff] hover:bg-[#5b98ff] text-white transition disabled:opacity-30 disabled:hover:bg-[#3a86ff] flex items-center justify-center cursor-pointer"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -844,7 +970,8 @@ function AppContent() {
                   {/* Messages list */}
                   <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-4xl mx-auto w-full">
                     {messages.map((msg) => (
-                      <div key={msg.id} id={`msg-${msg.id}`} className={`flex gap-4 ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div key={msg.id} id={`msg-${msg.id}`} className={`flex ${msg.type === 'user' ? 'flex-col items-end' : 'gap-4 justify-start'}`}>
+                        <div className={`flex gap-4 ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
                         {msg.type === 'assistant' && (
                           <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0 shadow-md">
                             <Scale className="w-4.5 h-4.5 text-amber-400" />
@@ -857,13 +984,13 @@ function AppContent() {
                             : 'bg-slate-800/80 border border-slate-700 text-slate-100'
                             }`}
                         >
-                          {msg.type === 'assistant' && msg.domain && (
-                            <div className="mb-3 flex items-center gap-4 text-xs font-semibold text-amber-400/90 bg-amber-500/5 p-2 rounded-lg border border-amber-500/10">
-                              <span>📂 {msg.domain.toUpperCase()}</span>
-                            </div>
-                          )}
+{msg.type === 'assistant' && msg.domain && (
+                              <div className="mb-3 flex items-center gap-4 text-xs font-semibold text-amber-400/90 bg-amber-500/5 p-2 rounded-lg border border-amber-500/10">
+                                <span>📂 {msg.domain.toUpperCase()}</span>
+                              </div>
+                            )}
 
-                          <p className="text-sm md:text-[15px] whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                            <p className="text-sm md:text-[15px] whitespace-pre-wrap leading-relaxed">{msg.content}</p>
 
                           {msg.type === 'assistant' && msg.results && msg.results.length > 0 && (
                             <div className="mt-4 space-y-2 border-t border-slate-700 pt-3">
@@ -879,7 +1006,7 @@ function AppContent() {
                                           <span className="w-5 h-5 rounded-full bg-amber-500/15 text-amber-400 text-[10px] font-bold flex items-center justify-center flex-shrink-0">{idx + 1}</span>
                                           <span className="font-bold text-amber-400 truncate">{result.section_title || result.section}</span>
                                         </div>
-                                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#21376d]/40 border border-[#21376d]/40 text-slate-300 uppercase tracking-wide whitespace-nowrap flex-shrink-0">{result.source_act}</span>
+                                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#1e2e5c]/40 border border-[#1e2e5c]/40 text-slate-300 uppercase tracking-wide whitespace-nowrap flex-shrink-0">{result.source_act}</span>
                                       </div>
                                       <div className="text-slate-400 mb-1.5">
                                         <span className="text-amber-500/90 font-semibold">{result.section}</span>
@@ -907,20 +1034,42 @@ function AppContent() {
                             <span className="text-amber-400 text-sm font-bold">{auth.userName?.charAt(0).toUpperCase()}</span>
                           </div>
                         )}
+                        </div>
+                        {msg.type === 'user' && (
+                          <div className="flex items-center gap-1.5 mt-1.5 pr-2">
+                            <button
+                              onClick={() => handleEditMessage(msg.id, msg.content)}
+                              className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-[#3a86ff] transition cursor-pointer"
+                              title="Edit and resend"
+                            >
+                              <Pencil className="w-3 h-3" /> Edit
+                            </button>
+                            <button
+                              onClick={() => handleCopyMessage(msg.content)}
+                              className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-[#3a86ff] transition cursor-pointer"
+                              title="Copy query"
+                            >
+                              <Copy className="w-3 h-3" /> Copy
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
 
-                    {loading && (
+                    {draft && (
                       <div className="flex gap-4 justify-start">
                         <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0">
                           <Scale className="w-4.5 h-4.5 text-amber-400 animate-pulse" />
                         </div>
-                        <div className="bg-slate-800/80 border border-slate-700 rounded-2xl px-5 py-4">
-                          <div className="flex gap-2">
-                            <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-bounce"></div>
-                            <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-bounce [animation-delay:0.2s]"></div>
-                            <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-bounce [animation-delay:0.4s]"></div>
-                          </div>
+                        <div className="max-w-2xl bg-slate-800/80 border border-slate-700 rounded-2xl px-5 py-3.5 shadow-md">
+                          {draft.text ? (
+                            <p className="text-sm md:text-[15px] whitespace-pre-wrap leading-relaxed">{draft.text}</p>
+                          ) : (
+                            <div className="flex items-center gap-2 text-xs text-amber-400/80">
+                              <Loader className="w-4 h-4 animate-spin" />
+                              {draft.status ?? 'Working on it...'}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -931,6 +1080,7 @@ function AppContent() {
                   <div className="p-4 md:p-6 max-w-4xl mx-auto w-full bg-transparent">
                     <div className="relative flex items-center bg-slate-900 border border-slate-850 focus-within:border-amber-500 focus-within:ring-1 focus-within:ring-amber-500/20 rounded-full px-5 py-2.5 transition-all shadow-lg">
                       <textarea
+                        ref={bottomInputRef}
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={(e) => {
@@ -943,17 +1093,23 @@ function AppContent() {
                         className="flex-1 bg-transparent border-0 outline-none focus:ring-0 text-white placeholder-slate-500 text-sm md:text-base resize-none pr-12 pl-1 py-1 leading-relaxed focus:outline-none focus:border-0"
                         rows={1}
                       />
-                      <button
-                        onClick={handleSendMessage}
-                        disabled={loading || !inputValue.trim()}
-                        className="absolute right-2.5 p-2 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 transition disabled:opacity-30 disabled:hover:bg-amber-500 flex items-center justify-center flex-shrink-0 cursor-pointer"
-                      >
-                        {loading ? (
-                          <Loader className="w-4 h-4 animate-spin" />
-                        ) : (
+                      {loading ? (
+                        <button
+                          onClick={handleStop}
+                          className="absolute right-2.5 p-2 rounded-full bg-[#3a86ff] hover:bg-[#5b98ff] text-white transition flex items-center justify-center flex-shrink-0 cursor-pointer"
+                          title="Stop generating"
+                        >
+                          <Square className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleSendMessage}
+                          disabled={!inputValue.trim()}
+                          className="absolute right-2.5 p-2 rounded-full bg-[#3a86ff] hover:bg-[#5b98ff] text-white transition disabled:opacity-30 disabled:hover:bg-[#3a86ff] flex items-center justify-center flex-shrink-0 cursor-pointer"
+                        >
                           <Send className="w-4 h-4" />
-                        )}
-                      </button>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

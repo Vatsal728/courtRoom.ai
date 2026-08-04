@@ -1,5 +1,26 @@
 @import "tailwindcss";
 
+@theme {
+  /* ── Navy Executive palette ─────────────────────────────── */
+  --color-slate-950: #0a1128;   /* app background */
+  --color-slate-900: #111c3a;   /* panels / cards */
+  --color-slate-850: #1a2747;
+  --color-slate-800: #16233f;   /* bubbles / raised surfaces */
+  --color-slate-700: #1e2e5c;   /* borders */
+  --color-slate-600: #2a3d73;
+  --color-slate-350: #98a4c8;
+
+  /* ── Gold highlight accent ──────────────────────────────── */
+  --color-amber-300: #f0d78c;
+  --color-amber-400: #e6c85c;
+  --color-amber-500: #d4af37;
+  --color-amber-600: #bf9b2a;
+
+  /* ── Sapphire primary accent ────────────────────────────── */
+  --color-blue-500: #3a86ff;
+  --color-blue-400: #5b98ff;
+}
+
 /* Custom Sleek Dark Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -11,12 +32,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #21376d;
+  background: #1e2e5c;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #f59e0b;
+  background: #d4af37;
 }
 
 :root {

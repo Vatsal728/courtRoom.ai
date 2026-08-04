@@ -2,8 +2,10 @@ import os
 import sys
 import io
 import time
+import json
 import requests
-from typing import Dict
+import httpx
+from typing import Dict, AsyncIterator
 from dotenv import load_dotenv
 
 if sys.stdout.encoding != 'utf-8':
@@ -117,6 +119,43 @@ class LLMRouter:
             print(f"  \u26a0\ufe0f Ollama unavailable: {e}")
             print("  \u21aa  Using static error response...")
             return str(LLM_TIMEOUT_ERR)
+
+    async def stream_generate(self, context: str, query: str, available: str = "") -> AsyncIterator[str]:
+        """Stream incremental JSON text chunks from Ollama (async).
+
+        Yields raw LLM output strings so callers can forward them as SSE.
+        Cancellation: when the caller stops iterating (client disconnect),
+        the httpx response is closed and generation is aborted server-side.
+        """
+        user_prompt = USER_PROMPT_TEMPLATE.format(context=context, query=query, available=available)
+        prompt = f"{SYSTEM_PROMPT}\n\n{user_prompt}"
+        url = f"{self.ollama_url}/api/generate"
+        payload = {
+            "model": self.ollama_model,
+            "prompt": prompt,
+            "stream": True,
+            "format": "json",
+            "temperature": 0.1,
+            "options": {"num_predict": 900, "num_ctx": 8192},
+            "keep_alive": "30m"
+        }
+        async with httpx.AsyncClient(timeout=self.ollama_timeout) as client:
+            async with client.stream("POST", url, json=payload) as resp:
+                if resp.status_code != 200:
+                    raise Exception(f"Ollama error: {resp.status_code}")
+                async for line in resp.aiter_lines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    piece = data.get("response", "")
+                    if piece:
+                        yield piece
+                    if data.get("done", False):
+                        break
 
 
 if __name__ == "__main__":
