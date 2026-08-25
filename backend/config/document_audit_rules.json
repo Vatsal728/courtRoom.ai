@@ -1,0 +1,116 @@
+{
+  "disclaimer": "This audit is a rule-based keyword check of the text you provided, for planning only. It is NOT a legal opinion, and a lawyer must review the final document before use.",
+  "documents": {
+    "rent": {
+      "label": "Rental / Lease Agreement",
+      "intro": "Checks for the clauses every rental agreement should cover.",
+      "fields": [
+        {"id": "parties", "label": "Parties named (landlord & tenant)", "keywords": ["landlord", "tenant", "lessor", "lessee", "owner"], "severity": "high", "hint": "Full legal names of both parties"},
+        {"id": "property", "label": "Property address", "keywords": ["address", "property", "premises", "flat", "apartment"], "severity": "high", "hint": "Complete premises address"},
+        {"id": "rent", "label": "Monthly rent amount", "keywords": ["rent", "monthly rent", "per month"], "severity": "high", "hint": "Rent amount and due date"},
+        {"id": "deposit", "label": "Security deposit", "keywords": ["deposit", "security deposit", "refundable"], "severity": "high", "hint": "Deposit amount and refund terms"},
+        {"id": "term", "label": "Tenure / term", "keywords": ["term", "duration", "period", "months", "years"], "severity": "medium", "hint": "Start/end of tenancy"},
+        {"id": "notice", "label": "Notice period", "keywords": ["notice", "notice period", "days notice"], "severity": "medium", "hint": "Notice required to end tenancy"},
+        {"id": "maintenance", "label": "Maintenance responsibility", "keywords": ["maintenance", "repairs", "repair"], "severity": "medium", "hint": "Who fixes/maintains what"},
+        {"id": "utilities", "label": "Utility payments", "keywords": ["electricity", "water", "utility", "bills"], "severity": "low", "hint": "Who pays utilities"},
+        {"id": "registration", "label": "Stamp / registration", "keywords": ["stamp", "registration", "register"], "severity": "low", "hint": "Stamp duty & registration for 12+ month leases"}
+      ]
+    },
+    "consumer": {
+      "label": "Purchase / Warranty Document",
+      "intro": "Checks for seller, product and payment details.",
+      "fields": [
+        {"id": "seller", "label": "Seller details", "keywords": ["seller", "supplier", "vendor", "company", "store"], "severity": "high", "hint": "Seller name, address, contact"},
+        {"id": "buyer", "label": "Buyer details", "keywords": ["buyer", "customer", "purchased by", "mr", "mrs"], "severity": "medium", "hint": "Your name/details"},
+        {"id": "product", "label": "Product description", "keywords": ["product", "model", "item", "warranty"], "severity": "high", "hint": "Product model and description"},
+        {"id": "price", "label": "Price / amount paid", "keywords": ["rs", "price", "amount", "paid", "inr", "rupees"], "severity": "high", "hint": "Total price paid"},
+        {"id": "date", "label": "Purchase date", "keywords": ["date", "purchase", "invoice date"], "severity": "medium", "hint": "Date of purchase/invoice"},
+        {"id": "payment", "label": "Proof of payment", "keywords": ["payment", "paid", "bank", "upi", "card", "receipt"], "severity": "high", "hint": "Payment method and reference"},
+        {"id": "warranty", "label": "Warranty terms", "keywords": ["warranty", "guarantee", "warranty period"], "severity": "medium", "hint": "Warranty duration and coverage"}
+      ]
+    },
+    "labor": {
+      "label": "Employment / Appointment Letter",
+      "intro": "Checks for the essentials of an employment document.",
+      "fields": [
+        {"id": "employer", "label": "Employer name", "keywords": ["employer", "company", "limited", "pvt", "organization"], "severity": "high", "hint": "Full employer name"},
+        {"id": "employee", "label": "Employee name", "keywords": ["employee", "you are", "we are pleased", "offer"], "severity": "high", "hint": "Your name as employee"},
+        {"id": "designation", "label": "Designation / role", "keywords": ["designation", "position", "role", "title"], "severity": "high", "hint": "Job role"},
+        {"id": "salary", "label": "Salary / compensation", "keywords": ["salary", "compensation", "ctc", "per annum", "monthly"], "severity": "high", "hint": "Salary breakup and payment date"},
+        {"id": "joining", "label": "Joining date", "keywords": ["joining", "date of joining", "start date"], "severity": "medium", "hint": "Expected start date"},
+        {"id": "probation", "label": "Probation terms", "keywords": ["probation", "confirmation"], "severity": "low", "hint": "Probation length and confirmation"},
+        {"id": "notice_emp", "label": "Notice period (resignation)", "keywords": ["notice period", "notice"], "severity": "medium", "hint": "Notice to resign"},
+        {"id": "hours", "label": "Working hours", "keywords": ["hours", "working", "timings"], "severity": "low", "hint": "Working hours/leaves"}
+      ]
+    },
+    "criminal": {
+      "label": "Police Complaint / FIR",
+      "intro": "Checks for the details a police complaint or FIR needs.",
+      "fields": [
+        {"id": "complainant", "label": "Complainant details", "keywords": ["i am", "complainant", "name", "the complainant"], "severity": "high", "hint": "Your name and contact"},
+        {"id": "accused", "label": "Accused/opposite party", "keywords": ["accused", "suspect", "person", "the other"], "severity": "medium", "hint": "Who did it, if known"},
+        {"id": "incident", "label": "Incident description", "keywords": ["incident", "happened", "occurred", "attack", "stole", "cheated"], "severity": "high", "hint": "What happened, in sequence"},
+        {"id": "date_inc", "label": "Incident date & time", "keywords": ["date", "at", "on "], "severity": "medium", "hint": "When it happened"},
+        {"id": "place", "label": "Place of incident", "keywords": ["place", "at", "location", "address"], "severity": "medium", "hint": "Where it happened"},
+        {"id": "evidence_fir", "label": "Evidence/witnesses", "keywords": ["witness", "evidence", "cctv", "proof"], "severity": "medium", "hint": "Witnesses and proof"}
+      ]
+    },
+    "cyber": {
+      "label": "Cyber Complaint",
+      "intro": "Checks for the details a cyber crime complaint needs.",
+      "fields": [
+        {"id": "account", "label": "Account/platform details", "keywords": ["account", "email", "phone", "user id", "profile"], "severity": "high", "hint": "Compromised account/email/phone"},
+        {"id": "loss", "label": "Amount lost", "keywords": ["rs", "amount", "lost", "transfer", "paid", "rupees"], "severity": "high", "hint": "Money lost, if any"},
+        {"id": "timeline", "label": "Incident timeline", "keywords": ["date", "when", "timeline"], "severity": "medium", "hint": "When it happened"},
+        {"id": "evidence_cy", "label": "Screenshots/proof", "keywords": ["screenshot", "message", "email", "transaction", "ref"], "severity": "high", "hint": "Screenshots, messages, transaction refs"},
+        {"id": "device", "label": "Device/platform", "keywords": ["device", "website", "app", "platform", "whatsapp", "instagram", "facebook"], "severity": "low", "hint": "Where it happened"}
+      ]
+    },
+    "family": {
+      "label": "Family / Maintenance Agreement",
+      "intro": "Checks for the essentials of a family/maintenance agreement.",
+      "fields": [
+        {"id": "parties_fam", "label": "Parties named", "keywords": ["husband", "wife", "spouse", "between"], "severity": "high", "hint": "Both parties named"},
+        {"id": "maintenance_amt", "label": "Maintenance amount", "keywords": ["maintenance", "amount", "per month", "rs"], "severity": "high", "hint": "Amount and frequency"},
+        {"id": "children", "label": "Children details", "keywords": ["child", "children", "minor"], "severity": "medium", "hint": "If children involved"},
+        {"id": "property_fam", "label": "Property / settlement", "keywords": ["property", "settlement", "asset", "jewellery"], "severity": "medium", "hint": "Property or one-time settlement"},
+        {"id": "visitation", "label": "Visitation / custody", "keywords": ["custody", "visitation", "access"], "severity": "medium", "hint": "Custody/visitation terms"}
+      ]
+    },
+    "defamation": {
+      "label": "Defamation Complaint",
+      "intro": "Checks for the details a defamation complaint needs.",
+      "fields": [
+        {"id": "statement", "label": "The defamatory statement", "keywords": ["said", "posted", "statement", "wrote", "published", "false"], "severity": "high", "hint": "Exact words/statement"},
+        {"id": "medium", "label": "Publication medium", "keywords": ["whatsapp", "facebook", "instagram", "newspaper", "tv", "social", "group"], "severity": "high", "hint": "Where it was published"},
+        {"id": "date_def", "label": "Publication date", "keywords": ["date", "posted", "on "], "severity": "medium", "hint": "When it was published"},
+        {"id": "reach", "label": "Audience / reach", "keywords": ["group", "followers", "public", "members", "shared"], "severity": "medium", "hint": "How many saw it"},
+        {"id": "harm", "label": "Harm described", "keywords": ["reputation", "harm", "damage", "business", "social"], "severity": "medium", "hint": "How you were harmed"}
+      ]
+    },
+    "commercial": {
+      "label": "Business / Commercial Contract",
+      "intro": "Checks for the clauses every commercial contract needs.",
+      "fields": [
+        {"id": "parties_b", "label": "Parties named", "keywords": ["between", "party", "company", "limited", "and"], "severity": "high", "hint": "Both contracting parties"},
+        {"id": "subject", "label": "Subject / scope", "keywords": ["services", "goods", "deliverables", "scope", "purpose"], "severity": "high", "hint": "What the contract covers"},
+        {"id": "payment_b", "label": "Payment terms", "keywords": ["payment", "price", "invoicing", "rs", "amount"], "severity": "high", "hint": "Amounts, milestones, due dates"},
+        {"id": "term_b", "label": "Term / duration", "keywords": ["term", "duration", "effective", "months", "years"], "severity": "medium", "hint": "Contract period"},
+        {"id": "termination", "label": "Termination clause", "keywords": ["termination", "terminate", "breach"], "severity": "high", "hint": "How either side can exit"},
+        {"id": "dispute", "label": "Dispute resolution", "keywords": ["arbitration", "jurisdiction", "court", "dispute", "governing law"], "severity": "high", "hint": "Forum for disputes"},
+        {"id": "signatures", "label": "Signatures", "keywords": ["signature", "signed", "authorized", "witness"], "severity": "high", "hint": "Signatures of both parties"}
+      ]
+    },
+    "civil": {
+      "label": "General Civil Document",
+      "intro": "Checks for the essentials of a general civil document.",
+      "fields": [
+        {"id": "parties_c", "label": "Parties named", "keywords": ["between", "against", "complainant", "petitioner", "applicant", "defendant"], "severity": "high", "hint": "Both sides named"},
+        {"id": "subject_c", "label": "Subject / dispute", "keywords": ["regarding", "matter", "dispute", "recovery", "compensation", "damages"], "severity": "high", "hint": "What the dispute is about"},
+        {"id": "relief", "label": "Relief / claim", "keywords": ["claim", "relief", "demand", "compensation", "refund", "amount"], "severity": "high", "hint": "What you are asking for"},
+        {"id": "amount_c", "label": "Amount", "keywords": ["rs", "rupees", "inr", "amount"], "severity": "medium", "hint": "Monetary amount if any"},
+        {"id": "date_c", "label": "Date of incident", "keywords": ["date", "on "], "severity": "medium", "hint": "When it happened"}
+      ]
+    }
+  }
+}

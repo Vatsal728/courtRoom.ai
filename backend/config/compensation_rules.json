@@ -1,0 +1,137 @@
+{
+  "currency": "INR",
+  "disclaimer": "Compensation figures are ESTIMATES produced by a deterministic calculator from the facts and statutory defaults. They are illustrative ranges for planning, NOT legal advice, and do not bind any court or authority.",
+  "rules": {
+    "rent": {
+      "label": "Rent & Deposit",
+      "formula": "deposit_refund",
+      "params": {
+        "refund_rate_pct": 100,
+        "interest_rate_annual": 0.06
+      },
+      "notes": [
+        "Security deposit is fully refundable on vacating; delayed refund can carry statutory/contractual interest (commonly ~6% p.a.).",
+        "No punitive damages; the range is the deposit plus accrued interest."
+      ]
+    },
+    "labor": {
+      "label": "Labour & Wages",
+      "formula": "wages_and_compensation",
+      "params": {
+        "wage_interest_annual": 0.12,
+        "retrenchment_days_per_year": 15,
+        "gratuity_days_per_year": 15,
+        "gratuity_cap": 3500000
+      },
+      "notes": [
+        "Unpaid wages are recoverable with interest (Code on Wages 2019, in force 21-11-2025).",
+        "Retrenchment compensation ~15 days average wages per completed year of service (Industrial Disputes Act 1947; IR Code 2020 from 21-11-2026).",
+        "Gratuity ~15 days wages per completed year, capped at Rs 35,00,000 (Code on Social Security 2020)."
+      ]
+    },
+    "consumer": {
+      "label": "Consumer",
+      "formula": "loss_multiplier",
+      "params": {
+        "max_multiplier": 3.0,
+        "tiers": [
+          {"max_loss": 50000, "multiplier": 1.0},
+          {"max_loss": 200000, "multiplier": 1.5},
+          {"max_loss": 1000000, "multiplier": 2.0},
+          {"multiplier": 2.5}
+        ]
+      },
+      "notes": [
+        "Refund/replacement of the amount paid plus compensation for loss and inconvenience (Consumer Protection Act 2019).",
+        "Multiplier scales with the loss amount; the cap is 3x the loss."
+      ]
+    },
+    "defamation": {
+      "label": "Defamation",
+      "formula": "band",
+      "params": {
+        "bands": [
+          {"reach": "private", "min": 25000, "max": 200000},
+          {"reach": "public", "min": 100000, "max": 1000000},
+          {"min": 50000, "max": 500000}
+        ]
+      },
+      "notes": [
+        "General damages depend on the reach of publication and harm to reputation.",
+        "Indicative band only; actual awards vary widely by court."
+      ]
+    },
+    "cyber": {
+      "label": "Cyber & Data Breach",
+      "formula": "band",
+      "params": {
+        "bands": [
+          {"reach": "personal", "min": 50000, "max": 500000},
+          {"reach": "business", "min": 500000, "max": 5000000},
+          {"min": 50000, "max": 500000}
+        ]
+      },
+      "notes": [
+        "Compensation for hacking/data theft is highly fact-sensitive.",
+        "Recover the proved financial loss first; band is indicative for consequential loss."
+      ]
+    },
+    "criminal": {
+      "label": "Criminal (Theft / Cheating / Assault)",
+      "formula": "criminal_general",
+      "params": {
+        "stolen_value_factor": 1.0,
+        "assault_medical_factor": 2.0,
+        "assault_pain_cap": 250000,
+        "cheating_interest_annual": 0.12
+      },
+      "notes": [
+        "Civil damages run parallel to the criminal case: value of stolen property, amount cheated with interest, or medical bills plus pain-and-suffering.",
+        "Criminal fines and sentences are separate and fixed by the court."
+      ]
+    },
+    "family": {
+      "label": "Family / Maintenance",
+      "formula": "band",
+      "params": {
+        "bands": [
+          {"income_max": 30000, "min": 5000, "max": 10000},
+          {"income_max": 60000, "min": 10000, "max": 20000},
+          {"income_max": 150000, "min": 20000, "max": 35000},
+          {"min": 25000, "max": 50000}
+        ]
+      },
+      "notes": [
+        "Maintenance estimated by respondent income bands (interim vs final is fixed by the court).",
+        "Range is a planning aid only."
+      ]
+    },
+    "commercial": {
+      "label": "Commercial / Contract",
+      "formula": "contract_loss",
+      "params": {
+        "interest_annual": 0.18
+      },
+      "notes": [
+        "Direct loss suffered (Section 73, Indian Contract Act 1872) plus interest.",
+        "Court may cap interest; 18% p.a. is the illustrative ceiling."
+      ]
+    },
+    "civil": {
+      "label": "General Civil",
+      "formula": "loss_multiplier",
+      "params": {
+        "max_multiplier": 2.0,
+        "tiers": [
+          {"max_loss": 100000, "multiplier": 1.0},
+          {"max_loss": 500000, "multiplier": 1.25},
+          {"multiplier": 1.5}
+        ]
+      },
+      "notes": [
+        "General damages estimated from the proved loss.",
+        "Range = loss x tier multiplier, capped at 2x."
+      ]
+    }
+  }
+}

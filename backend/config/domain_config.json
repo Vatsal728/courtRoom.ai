@@ -1,0 +1,404 @@
+{
+  "version": 1,
+  "domains": {
+    "criminal": {
+      "label": "Criminal",
+      "negation_sensitive": true,
+      "keywords": [
+        "fir", "police", "crime", "criminal", "arrest", "jail", "prison",
+        "intimidation", "threat", "harassment", "assault", "assaulted", "hit", "beat",
+        "beaten", "defame", "defamation", "defaming", "defamed", "defamatory", "slander", "libel", "blackmail", "extortion", "rape",
+        "theft", "robbery", "rob", "robbed", "looted", "loot", "snatch",
+        "snatched", "mugged", "dacoity", "extort", "kidnap", "kidnapped",
+        "steal", "stealing", "stole", "stolen", "wallet", "pickpocket",
+        "murder", "poison", "knife", "gun", "armed", "weapon",
+        "cruelty", "domestic violence", "beating", "assault",
+        "fraud", "fraudulent", "scam", "scammed", "scamming", "cheat",
+        "cheated", "cheating", "deceive", "deceived", "deception",
+        "impersonation", "impersonate", "swindle", "conned", "bribe",
+        "bribed", "bribery", "embezzle", "embezzled", "misappropriation",
+        "dishonest", "dishonestly", "duped", "con artist", "conman"
+      ]
+    },
+    "civil": {
+      "label": "Civil",
+      "keywords": [
+        "injunction", "damages", "compensation", "suit", "claim", "relief",
+        "civil court", "breach", "contract", "agreement", "money", "dues",
+        "settlement", "judgment", "decree", "recovery", "property", "title"
+      ]
+    },
+    "rent": {
+      "label": "Rent",
+      "keywords": [
+        "rent", "landlord", "tenant", "eviction", "lease", "deposit",
+        "flat", "house", "apartment", "property", "notice", "possession"
+      ]
+    },
+    "labor": {
+      "label": "Labor",
+      "nb_class": "labour",
+      "keywords": [
+        "employment", "employer", "employee", "wages", "salary", "leave",
+        "dismissal", "termination", "redundancy", "layoff", "work", "job",
+        "working", "hours", "shift", "gratuity", "bonus", "pf", "esi"
+      ]
+    },
+    "family": {
+      "label": "Family",
+      "keywords": [
+        "marriage", "divorce", "custody", "maintenance", "alimony",
+        "inheritance", "succession", "will", "dowry", "domestic", "abuse",
+        "child", "parent", "adoption", "guardianship", "separation",
+        "cruelty", "husband", "wife", "marital", "spouse"
+      ]
+    },
+    "defamation": {
+      "label": "Defamation",
+      "keywords": [
+        "defame", "defamation", "defaming", "defamed", "defamatory", "slander", "libel",
+        "false", "reputation", "character", "rumors", "gossip", "social media",
+        "facebook", "instagram", "twitter", "post", "comment", "viral",
+        "humiliation", "online"
+      ]
+    },
+    "cyber": {
+      "label": "Cyber",
+      "keywords": [
+        "online", "internet", "website", "email", "password", "hacking",
+        "hacker", "hacked", "cyber", "digital", "data", "privacy",
+        "social media", "whatsapp", "screenshot", "viral", "deepfake",
+        "malware", "ransomware", "fraud", "scam", "scammed", "scamming", "phishing", "stolen",
+        "stole", "otp"
+      ]
+    },
+    "consumer": {
+      "label": "Consumer",
+      "keywords": [
+        "consumer", "defective", "defect", "refund", "warranty", "product",
+        "bought", "buy", "purchase", "seller", "shopkeeper", "shop", "store",
+        "goods", "order", "delivery", "replacement", "repair", "damaged",
+        "expired", "mobile", "phone", "laptop", "appliance", "complaint", "quality"
+      ]
+    },
+    "commercial": {
+      "label": "Commercial",
+      "keywords": [
+        "business", "company", "partnership", "trader", "firm", "client",
+        "vendor", "supplier", "invoice", "payment", "franchise", "patent",
+        "trademark", "copyright", "intellectual", "commercial", "merchant"
+      ]
+    }
+  },
+  "nb_class_map": {
+    "labor": "labour"
+  },
+  "idioms": [
+    { "match": "wage theft", "replace": "unpaid wages" },
+    { "match": "flat day rate", "replace": "fixed daily wage" },
+    { "match": "defamatory", "replace": "defamation" },
+    { "match": "defame", "replace": "defamation" },
+    { "match": "defaming", "replace": "defamation" },
+    { "match": "slander", "replace": "defamation" },
+    { "match": "libel", "replace": "defamation" }
+  ],
+  "negation_patterns": [
+    "\\b(?:not|no|never|don't|doesn't|didn't|wasn't|won't)\\s+\\w*(?:criminal|crime|illegal|theft|assault|fraud|harassment|defame|hack|scam|cheat|bribe)\\b"
+  ],
+  "negation_domains": ["criminal", "defamation", "cyber"],
+  "classifier": {
+    "keyword_weight": 0.6,
+    "nb_weight": 0.4,
+    "min_confidence": 0.3,
+    "max_confidence": 0.95,
+    "no_keyword_fallback_domain": "civil",
+    "no_keyword_max_combined": 0.35,
+    "secondary_min_keywords": 2
+  },
+  "rules": [
+    {
+      "id": "criminal_civil",
+      "domains": { "criminal": 1, "civil": 1 },
+      "min_combined": 0.5,
+      "result": "both_criminal_civil",
+      "secondary": ["criminal", "civil"]
+    },
+    {
+      "id": "rent_with_criminal",
+      "domains": { "rent": 2, "criminal": 1 },
+      "result": "rent",
+      "secondary": ["criminal", "civil"],
+      "fixed_confidence": 0.9
+    },
+    {
+      "id": "cyber_defamation",
+      "domains": { "defamation": 2, "cyber": 1 },
+      "result": "cyber_defamation",
+      "secondary": ["defamation", "cyber", "criminal"],
+      "fixed_confidence": 0.85
+    },
+    {
+      "id": "fraud_criminal",
+      "domains": { "criminal": 2 },
+      "min_combined": 0.5,
+      "result": "criminal",
+      "secondary": ["cyber"]
+    },
+    {
+      "id": "scam_cyber_criminal",
+      "domains": { "criminal": 1, "cyber": 1 },
+      "min_combined": 0.5,
+      "result": "criminal",
+      "secondary": ["cyber", "labor"]
+    }
+  ],
+  "response_types": {
+    "primary_rules": {
+      "criminal_and_civil": ["both_criminal_civil"],
+      "criminal_only": ["criminal"],
+      "civil_only": ["civil"]
+    },
+    "secondary_rules": {
+      "rent": { "secondary_in": ["criminal"], "result": "criminal_and_civil" },
+      "criminal": { "secondary_in": ["civil"], "result": "criminal_and_civil" },
+      "civil": { "secondary_in": ["criminal"], "result": "criminal_and_civil" }
+    },
+    "default": "primary"
+  },
+  "grounding": {
+    "min_sources": 2,
+    "soft": true,
+    "soft_max_sources": 5,
+    "domains": {
+      "criminal": {
+        "acts": ["bharatiya", "indian penal", "code of criminal procedure", "negotiable instruments", "information technology"],
+        "topics": ["Criminal", "Cyber"]
+      },
+      "both_criminal_civil": {
+        "acts": ["bharatiya", "indian penal", "code of criminal procedure", "code of civil procedure", "negotiable instruments", "information technology"],
+        "topics": ["Criminal", "Civil", "Cyber"]
+      },
+      "cyber_defamation": {
+        "acts": ["bharatiya", "indian penal", "information technology", "digital personal data"],
+        "topics": ["Criminal", "Cyber"]
+      },
+      "civil": {
+        "acts": ["code of civil procedure"],
+        "topics": ["Civil"]
+      },
+      "rent": {
+        "acts": ["rent", "eviction", "tenant"],
+        "topics": ["Eviction", "Property"]
+      },
+      "labor": {
+        "acts": ["code on wages", "industrial relations", "code on social security", "occupational safety", "minimum wages", "payment of wages", "industrial dispute", "labour"],
+        "topics": ["Labor", "Payment"]
+      },
+      "family": {
+        "acts": ["hindu marriage", "hindu succession", "family", "divorce"],
+        "topics": ["Family"]
+      },
+      "defamation": {
+        "acts": ["bharatiya", "indian penal", "information technology"],
+        "topics": ["Criminal", "Cyber"]
+      },
+      "cyber": {
+        "acts": ["information technology", "digital personal data"],
+        "topics": ["Cyber"]
+      },
+      "consumer": {
+        "acts": ["consumer protection"],
+        "topics": ["Consumer"]
+      },
+      "commercial": {
+        "acts": ["negotiable instruments", "companies", "partnership", "contract"],
+        "topics": ["Contract"]
+      }
+    }
+  },
+  "legal_elements": {
+    "unauthorized_access": {
+      "keywords": ["unauthorised access", "unauthorized access", "access without permission", "intrusion", "trespass", "hacking", "hacked", "hack"]
+    },
+    "data_breach": {
+      "generic": true,
+      "keywords": ["data", "database", "personal data", "breach", "leak", "disclose", "disclosure", "published", "publish", "dump"]
+    },
+    "data_theft": {
+      "keywords": ["database", "stole the data", "stole my data", "stole our data", "stolen data", "stolen database", "data theft", "theft of data", "theft of the database", "database theft", "copied the database", "copied our database", "sold our data", "sold the database", "sold our database", "leaked the database", "leaked our database", "leaked the data", "dumped the database", "exfiltrat", "customer database", "client database", "user database", "company's database", "company database", "entire database", "database and published"]
+    },
+    "financial_fraud": {
+      "keywords": ["otp", "bank account", "banking account", "net banking", "netbanking", "internet banking", "upi", "bank transfer", "online transfer", "phonepe", "paytm", "gpay", "google pay", "credit card", "debit card", "card details", "banking app", "account hacked", "money stolen from my bank", "cyber cell", "savings account", "money stolen from my account"]
+    },
+    "computer_resource": {
+      "generic": true,
+      "keywords": ["computer", "computer system", "computer resource", "website", "server", "network", "electronic record"]
+    },
+    "cheating_fraud": {
+      "keywords": ["cheat", "cheated", "cheating", "fraud", "fraudulent", "deceive", "deceived", "deception", "scam", "scammed", "scamming", "misrepresentation", "induce", "dupe", "con"]
+    },
+    "criminal_breach_of_trust": {
+      "keywords": ["breach of trust", "entrust", "entrusted", "misappropriat", "return", "refuses to return", "not return", "won't return", "didn't return", "gave back", "give back"]
+    },
+    "theft": {
+      "keywords": ["theft", "steal", "stealing", "stolen", "stole", "dishonest taking", "dishonestly takes", "movable property", "take away", "snatch", "snatching", "pickpocket"]
+    },
+    "robbery": {
+      "keywords": ["robbery", "rob", "robbed", "violence", "force", "fear of instant", "in his presence", "put in fear"]
+    },
+    "assault": {
+      "keywords": ["assault", "assaulted", "hurt", "grievous hurt", "hit", "beat", "beaten", "beating", "physical", "attack", "attacked", "punched", "punch", "slapped", "slap", "kicked", "kick", "pushed", "shoved", "shove", "injured", "wounded", "molested", "stabbed", "broken bone", "fracture", "bloodied", "manhandled"]
+    },
+    "criminal_intimidation": {
+      "keywords": ["criminal intimidation", "threat", "threaten", "threatened", "threatening", "intimidation", "intimidate", "injury", "alarm", "fear"]
+    },
+    "cruelty": {
+      "keywords": ["cruelty", "cruel treatment", "husband", "wife", "domestic relationship", "relative of her husband", "dowry", "harass", "harassed", "wilful conduct"]
+    },
+    "dowry_demand": {
+      "keywords": ["dowry", "dowry demand", "demanded dowry", "asked for dowry", "bride"]
+    },
+    "eviction": {
+      "keywords": ["evict", "eviction", "evicted", "evicting", "possession", "tenancy", "thrown out", "throw out", "threw me out", "vacate"]
+    },
+    "wage_claim": {
+      "keywords": ["wages", "wage", "salary", "payment of wages", "minimum wage", "unpaid", "deduct", "gratuity", "bonus"]
+    },
+    "retrenchment": {
+      "keywords": ["retrenchment", "lay off", "laid off", "fired", "termination", "terminated", "sacked", "dismissal", "discharge", "retrenched"]
+    },
+    "divorce": {
+      "keywords": ["divorce", "divorcee", "decree of divorce", "dissolution of marriage", "separation", "married", "marriage"]
+    },
+    "maintenance_alimony": {
+      "keywords": ["maintenance", "alimony", "support", "spouse", "monthly allowance"]
+    },
+    "cheque_dishonour": {
+      "keywords": ["cheque", "cheques", "dishonour", "dishonor", "bounce", "bounced", "returned unpaid", "negotiable instrument", "debt"]
+    },
+    "consumer_defect": {
+      "keywords": ["defective", "defect", "goods", "product", "refund", "warranty", "repair", "replacement", "spurious", "deficient service", "bought", "purchase"]
+    },
+    "property_dispute": {
+      "generic": true,
+      "keywords": ["property", "title", "ownership", "immovable", "sale deed", "registry", "encroach", "boundary", "land"]
+    }
+  },
+  "element_suppressions": {
+    "theft": ["unauthorized_access", "data_breach", "data_theft", "financial_fraud"]
+  },
+  "known_sections": {
+    "unauthorized_access": [
+      { "act": "information technology", "section": ["43", "66"] }
+    ],
+    "theft": [
+      { "act": "bharatiya nyaya", "section": ["303", "304", "305", "307", "308"] },
+      { "act": "indian penal", "section": ["378", "379", "380", "382"] }
+    ],
+    "robbery": [
+      { "act": "bharatiya nyaya", "section": ["309", "310", "311", "312"] },
+      { "act": "indian penal", "section": ["392", "394", "397", "398"] }
+    ],
+    "assault": [
+      { "act": "bharatiya nyaya", "section": ["115", "117", "118", "120", "121", "123", "125"] },
+      { "act": "indian penal", "section": ["319", "320", "323", "324", "325", "326"] }
+    ],
+    "criminal_intimidation": [
+      { "act": "bharatiya nyaya", "section": ["351", "352", "353"] },
+      { "act": "indian penal", "section": ["503", "506"] }
+    ],
+    "cruelty": [
+      { "act": "bharatiya nyaya", "section": ["85", "86"] },
+      { "act": "indian penal", "section": ["498a", "304b"] }
+    ],
+    "dowry_demand": [
+      { "act": "bharatiya nyaya", "section": ["80", "85", "86"] },
+      { "act": "indian penal", "section": ["304b", "498a"] }
+    ],
+    "cheating_fraud": [
+      { "act": "bharatiya nyaya", "section": ["318", "319", "320"] },
+      { "act": "indian penal", "section": ["415", "418", "420"] }
+    ],
+    "criminal_breach_of_trust": [
+      { "act": "bharatiya nyaya", "section": ["316", "317"] },
+      { "act": "indian penal", "section": ["405", "409"] }
+    ],
+    "data_theft": [
+      { "act": "information technology", "section": ["43", "66"] }
+    ],
+    "financial_fraud": [
+      { "act": "information technology", "section": ["66", "66c", "66d"] },
+      { "act": "bharatiya nyaya", "section": ["318", "319", "320"] }
+    ],
+    "cheque_dishonour": [
+      { "act": "negotiable instruments", "section": ["138", "139", "142", "143"] }
+    ],
+    "divorce": [
+      { "act": "hindu marriage", "section": ["13", "13b"] },
+      { "act": "indian divorce", "section": ["10", "18", "19", "22"] }
+    ],
+    "maintenance_alimony": [
+      { "act": "hindu marriage", "section": ["24", "25"] },
+      { "act": "indian divorce", "section": ["36", "37"] },
+      { "act": "bharatiya nagarik", "section": ["144"] }
+    ]
+  },
+  "missing_facts": {
+    "eviction": {
+      "blocking": true,
+      "required": ["state", "tenancy_type", "notice", "reason"],
+      "ask": [
+        "Which state/city is the property located in?",
+        "Is there a written tenancy/rental agreement?",
+        "Did you receive a formal eviction notice?",
+        "What reason did the landlord give for the eviction?"
+      ]
+    },
+    "cheating_fraud": {
+      "blocking": false,
+      "required": ["amount_paid", "mode", "proof"],
+      "ask": [
+        "How much money did you pay and in what form (bank transfer, cash, UPI)?",
+        "Do you have payment receipts or messages with the recruiter?"
+      ]
+    },
+    "assault": {
+      "blocking": false,
+      "required": ["injuries", "location", "fir"],
+      "ask": [
+        "Did you sustain physical injuries?",
+        "Did you report the incident to the police (FIR)?"
+      ]
+    },
+    "cheque_dishonour": {
+      "blocking": false,
+      "required": ["notice_sent", "amount"],
+      "ask": [
+        "Did you issue a legal notice within 30 days of the cheque being returned?",
+        "What is the cheque amount?"
+      ]
+    }
+  },
+  "legal_concepts": {
+    "unauthorized_access": ["unauthorised access", "computer resource", "hacking", "intrusion"],
+    "data_protection": ["data", "personal data", "privacy", "disclosure"],
+    "theft": ["theft", "dishonest taking", "movable property", "possession", "without consent"],
+    "robbery": ["robbery", "force", "fear of instant death", "violence"],
+    "assault": ["assault", "hurt", "grievous hurt", "violence"],
+    "cruelty": ["cruelty", "domestic relationship", "wilful conduct", "harassment"],
+    "cheating": ["cheating", "deception", "fraud", "misrepresentation", "dishonest inducement"],
+    "criminal_intimidation": ["criminal intimidation", "threat", "alarm", "injury"],
+    "eviction": ["eviction", "tenancy", "possession", "rent", "landlord"],
+    "wages": ["wages", "salary", "payment of wages", "minimum wages"],
+    "divorce": ["divorce", "dissolution", "maintenance", "alimony"],
+    "cheque_dishonour": ["cheque dishonour", "returned unpaid", "negotiable instrument"]
+  },
+  "response_shaping": {
+    "suppress_criminal_route": ["civil", "civil_only", "rent", "labor", "consumer", "family", "commercial", "rti", "general", "tax"],
+    "suppress_civil_route": ["criminal", "criminal_only", "both_criminal_civil"],
+    "route_headers": {
+      "criminal": "CRIMINAL ROUTE",
+      "civil": "CIVIL ROUTE"
+    }
+  }
+}
