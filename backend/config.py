@@ -5,14 +5,16 @@ config.py - Central configuration for courtRoom.ai
 import os
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
+from src.paths import PROJECT_ROOT, resolve
+
+load_dotenv(PROJECT_ROOT / ".env", override=True)
 
 # ── RAG Pipeline ────────────────────────────────────────────────
 
 RAG_CONFIG = {
     # Chunking
-    "pdf_directory": "data/pdfs",
-    "chroma_db_path": "chroma_db",
+    "pdf_directory": str(resolve(os.getenv("PDF_DIRECTORY") or "data/pdfs")),
+    "chroma_db_path": str(resolve(os.getenv("CHROMA_DB_PATH") or "storage/chroma_db")),
     "chunk_size": 1000,
     "chunk_overlap": 200,
 
@@ -36,24 +38,13 @@ RAG_CONFIG = {
 
     # Reranker (BGE Cross-Encoder)
     "reranker_enabled": False,
-    "reranker_model": "D:/courtRoom.ai/.hf_cache/local/bge-reranker-v2-m3",
+    "reranker_model": "BAAI/bge-reranker-base",
     "reranker_device": "cpu",
 
     # HyDE (Hypothetical Document Embeddings)
     "hyde_enabled": False,
     "hyde_max_tokens": 200,
     "hyde_timeout": 30,
-}
-
-# ── LLM ─────────────────────────────────────────────────────────
-
-LLM_CONFIG = {
-    "ollama_base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-    "ollama_model": os.getenv("OLLAMA_MODEL", "qwen2.5:7b"),
-    "ollama_embed_model": "nomic-embed-text",
-    "request_timeout": int(os.getenv("OLLAMA_TIMEOUT", "300")),
-    "temperature": 0.1,
-    "max_tokens": 2048,
 }
 
 # ── MongoDB ─────────────────────────────────────────────────────
@@ -114,5 +105,5 @@ CHROMA_CONFIG = {
     "telemetry": False,
     "anonymized_telemetry": False,
     "persistent": True,
-    "path": "chroma_db",
+    "path": str(resolve(os.getenv("CHROMA_DB_PATH") or "storage/chroma_db")),
 }

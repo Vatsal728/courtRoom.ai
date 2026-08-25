@@ -3,7 +3,9 @@ import os
 import uuid
 import time
 import json
+import re
 import logging
+import asyncio
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -13,23 +15,33 @@ from fastapi import FastAPI, HTTPException, Request, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from datetime import datetime
 
 from src.full_rag import FullRAGSystem
+from src.user_docs_service import UserDocsService
+from src.agent import (
+    route_chat_tools, detect_smalltalk, chat_response,
+    merge_tool_answer, execute_tool, is_tool_relevant, detect_explicit_tool,
+)
 from src.agents.notice_agent import LegalNoticeAgent
 from src.agents.evidence_agent import EvidenceChecklistAgent
 from src.agents.rti_agent import RTIApplicationAgent
 from src.agents.deadline_agent import DeadlineTrackerAgent
+from src.agents.strategy_agent import CaseStrategyAgent
+from src.agents.audit_agent import DocumentAuditAgent
 from src.case_service import CaseService
 from src.evidence_service import EvidenceService
 from src.analytics_service import AnalyticsService
 from src.training_service import TrainingService
-from src.translator import get_translator, has_non_latin_script, detect_language
+from src.translator import has_non_latin_script, detect_language, detect_requested_language
+from src.ollama_translator import get_fast_translator
+from src.llm_router import LLM_TIMEOUT_ERR
 from src.response_formatter import format_legal_response
+from src.domain_config import filter_sources_by_domain
 from api.auth import router as auth_router
 from config import API_CONFIG, MONGODB_CONFIG
 
@@ -76,12 +88,16 @@ _case_service = None
 _evidence_service = None
 _analytics_service = None
 _training_service = None
+_user_docs_service = None
+_strategy_agent = None
+_audit_agent = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _rag_system, _notice_agent, _evidence_agent, _rti_agent, _deadline_agent, _storage
-    global _case_service, _evidence_service, _analytics_service, _training_service
+    global _case_service, _evidence_service, _analytics_service, _training_service, _user_docs_service
+    global _strategy_agent, _audit_agent
     log.info("Starting courtRoom.ai API...")
     try:
         _rag_system = FullRAGSystem()
@@ -92,11 +108,18 @@ async def lifespan(app: FastAPI):
     _evidence_agent = EvidenceChecklistAgent()
     _rti_agent = RTIApplicationAgent()
     _deadline_agent = DeadlineTrackerAgent()
+    _strategy_agent = CaseStrategyAgent()
+    _audit_agent = DocumentAuditAgent()
     _storage = _QueryStorage()
     _case_service = CaseService()
     _evidence_service = EvidenceService(_case_service)
     _analytics_service = AnalyticsService()
     _training_service = TrainingService()
+    try:
+        _user_docs_service = UserDocsService()
+        log.info("user_docs_service initialized")
+    except Exception as e:
+        log.warning("user_docs_service init failed", error=str(e))
     yield
     log.info("Shutting down courtRoom.ai API...")
 
@@ -180,6 +203,95 @@ def get_storage():
     return _storage
 
 
+def _user_profile(user_id: str) -> Optional[Dict]:
+    """Fetch a logged-in user's profile (name/email) for personalization."""
+    if not user_id or user_id == "anonymous":
+        return None
+    try:
+        user = db.users.find_one({"_id": ObjectId(user_id)})
+    except Exception:
+        return None
+    if not user:
+        return None
+    return {
+        "name": user.get("name", ""),
+        "email": user.get("email", ""),
+    }
+
+
+def _tool_result_payload(query: str, tools: List[Dict]) -> Dict:
+    """Final response driven by a tool result (no RAG / no clarifying-questions
+    layer). needs_input tools ask their own targeted questions; ready tools
+    carry their artifact for the UI to render."""
+    tool = tools[0]
+    needs = tool.get("status") == "needs_input"
+    msg = tool.get("message") or ("A few more details are needed." if needs else "Done.")
+    return {
+        "query": query,
+        "status": "needs_more_info" if needs else "success",
+        "response_type": "tool",
+        "confidence_score": 0.0,
+        "short_answer": msg,
+        "full_response": msg,
+        "response": msg,
+        "sources": [],
+        "applicable_laws": {},
+        "tools": tools,
+        "missing_facts": tool.get("missing_fields") or [],
+        "questions": [] if not needs else tool.get("missing_fields") or [],
+    }
+
+
+# ── Multi-turn tool continuation ─────────────────────────────────────────
+# When a tool asks for missing details, remember it per user so the next
+# message is treated as their answer and merged into the same tool call.
+_PENDING_TOOLS: Dict[str, Dict[str, Any]] = {}
+_PENDING_TTL_SECONDS = float(os.getenv("TOOL_PENDING_TTL_SECONDS", "600"))
+
+
+def _prune_pending() -> None:
+    now = time.monotonic()
+    stale = [uid for uid, p in _PENDING_TOOLS.items() if now - p.get("ts", 0) > _PENDING_TTL_SECONDS]
+    for uid in stale:
+        _PENDING_TOOLS.pop(uid, None)
+
+
+def _store_pending(user_id: str, name: str, params: Dict[str, Any]) -> None:
+    if not user_id:
+        return
+    _prune_pending()
+    _PENDING_TOOLS[user_id] = {"name": name, "params": params or {}, "ts": time.monotonic()}
+
+
+def _clear_pending(user_id: str) -> None:
+    _PENDING_TOOLS.pop(user_id, None)
+
+
+def _merge_pending(user_id: str, query: str, profile: Optional[Dict] = None) -> Optional[Dict]:
+    """If a tool is waiting on details for this user, merge their reply.
+
+    Returns the re-executed tool result when the message is treated as an
+    answer; None when there is no pending tool or the message starts a fresh
+    topic (tool intent, smalltalk, definition question).
+    """
+    if not user_id:
+        return None
+    _prune_pending()
+    pending = _PENDING_TOOLS.get(user_id)
+    if not pending:
+        return None
+    if detect_explicit_tool(query) is not None or is_tool_relevant(query) or detect_smalltalk(query):
+        _clear_pending(user_id)
+        return None
+    merged = merge_tool_answer(pending["name"], pending["params"], query, profile)
+    result = execute_tool(pending["name"], merged, user_id, _storage, profile)
+    if result.get("status") == "needs_input":
+        _store_pending(user_id, pending["name"], result.get("params") or merged)
+    else:
+        _clear_pending(user_id)
+    return result
+
+
 # ── Models ───────────────────────────────────────────────────────
 class QueryRequest(BaseModel):
     query: str = Field(..., max_length=API_CONFIG["max_query_length"])
@@ -188,13 +300,15 @@ class QueryRequest(BaseModel):
 
 class NoticeRequest(BaseModel):
     sender_name: str
-    sender_address: str
+    sender_address: str = ""
+    sender_email: str = ""
     recipient_name: str
-    recipient_address: str
-    issue_type: str
+    recipient_address: str = ""
+    recipient_email: str = ""
+    issue_type: str = "Legal Dispute"
     issue_description: str
-    applicable_section: str
-    demand_amount: str
+    applicable_section: str = ""
+    demand_amount: str = ""
 
 
 class DeadlineRequest(BaseModel):
@@ -240,7 +354,9 @@ class _QueryStorage:
             "filename": pdf_data["filename"],
             "pdf_path": pdf_data["pdf_path"],
             "sender_name": pdf_data["sender_name"],
+            "sender_email": pdf_data.get("sender_email", ""),
             "recipient_name": pdf_data["recipient_name"],
+            "recipient_email": pdf_data.get("recipient_email", ""),
             "issue_type": pdf_data["issue_type"],
             "demand_amount": pdf_data["demand_amount"],
             "created_at": datetime.now(),
@@ -268,66 +384,109 @@ class _QueryStorage:
 
 
 # ── Translation helpers ─────────────────────────────────────────
+# Wall-clock budget for the whole translation + QA step. Overshoots degrade
+# gracefully to `translated: partial` instead of blocking the response.
+TRANSLATION_SLA_SECONDS = float(os.getenv("TRANSLATION_SLA_SECONDS", "20"))
+
+
 def _resolve_target_language(query: str, requested: str) -> str:
     """Effective answer language for a query.
 
     The dropdown selection wins; when it is English but the query was typed
     in an Indian script (Gujarati/Hindi/etc.), auto-detect the language and
-    answer in it, so no manual selection is needed.
+    answer in it, so no manual selection is needed. As a last resort, honor
+    an explicit textual request like 'help me in gujarati'.
     """
     requested = (requested or "en").strip().lower()
     if requested != "en":
         return requested
     detected = detect_language(query or "")
-    return detected if detected != "en" else "en"
+    if detected != "en":
+        return detected
+    return detect_requested_language(query or "")
 
 
-def _translate_result(result: dict, lang: str, translator) -> None:
+def _translate_result(
+    result: dict,
+    lang: str,
+    translator,
+    deadline: Optional[float] = None,
+) -> int:
     """Translate the structured answer + source previews into `lang`, in place.
 
     Full statute text in sources stays English to keep translation fast.
     Original English values are preserved under original_* keys.
+    Returns the number of fields corrected (always 0; QA pass was removed).
     """
     if lang in (None, "", "en"):
-        return
+        return 0
 
-    def _keep_original(key: str, val):
-        result.setdefault(f"original_{key}", val)
+    corrected_count = 0
 
+    def _over_deadline() -> bool:
+        if deadline is None:
+            return False
+        over = time.monotonic() > deadline
+        if over:
+            result["translated"] = "partial"
+        return over
+
+    # Build fields dict for batch translation
+    fields_to_translate = {}
     short = result.get("short_answer")
     if isinstance(short, str) and short.strip():
-        _keep_original("short_answer", short)
-        result["short_answer"] = translator.answer_in_language(short, lang)
-
+        fields_to_translate["short_answer"] = short
+    illegal = result.get("is_this_illegal")
+    if isinstance(illegal, str) and illegal.strip():
+        fields_to_translate["is_this_illegal"] = illegal
     full = result.get("full_response") or result.get("response")
     if isinstance(full, str) and full.strip():
-        _keep_original("full_response", full)
-        translated_full = translator.answer_in_language(full, lang)
-        result["full_response"] = translated_full
-        result["response"] = translated_full
+        fields_to_translate["full_response"] = full
 
-    sources = result.get("sources")
-    if isinstance(sources, list):
-        _keep_original("sources", sources)
-        translated_sources = []
-        for s in sources:
-            ts = dict(s)
-            for field in ("section_title", "topic"):
-                val = ts.get(field)
-                if isinstance(val, str) and val.strip():
-                    ts[field] = translator.answer_in_language(val, lang)
-            preview = ts.get("content_preview")
-            if isinstance(preview, str) and preview.strip():
-                ts["content_preview"] = translator.answer_in_language(preview, lang)
-            translated_sources.append(ts)
-        result["sources"] = translated_sources
+    if not fields_to_translate:
+        return 0
+
+    # Preserve originals before translation
+    for key, src in fields_to_translate.items():
+        result.setdefault(f"original_{key}", src)
+
+    # Batch translate via Groq -> Google -> original
+    translated_fields = translator.batch_translate(fields_to_translate, lang, deadline=deadline)
+
+    # Apply translations
+    for key, translated in translated_fields.items():
+        result[key] = translated
+        if key == "full_response":
+            result["response"] = translated
+
+    # Source previews last (lowest priority; may be dropped on deadline).
+    # Batch all preview fields into a single Groq call (individual calls blew
+    # past the free-tier RPM and caused 429 retry storms).
+    if not _over_deadline():
+        sources = result.get("sources")
+        if isinstance(sources, list):
+            result.setdefault("original_sources", sources)
+            source_fields = {}
+            for i, s in enumerate(sources):
+                for field in ("section_title", "topic", "content_preview"):
+                    val = s.get(field)
+                    if isinstance(val, str) and val.strip():
+                        source_fields[f"sources.{i}.{field}"] = val
+            translated_sources = None
+            if source_fields:
+                translated_source_fields = translator.batch_translate(
+                    source_fields, lang, deadline=deadline
+                )
+                translated_sources = [dict(s) for s in sources]
+                for key, text in translated_source_fields.items():
+                    _, idx, field = key.split(".", 2)
+                    translated_sources[int(idx)][field] = text
+                result["sources"] = translated_sources
+
+    return corrected_count
 
 
 # ── Endpoints ────────────────────────────────────────────────────
-@app.get("/live-location/data")
-async def live_location_stub(request: Request):
-    return {"enabled": False, "message": "Live location tracking is not available in this version."}
-
 @app.get("/health")
 @limiter_decorator()
 async def health_check(request: Request):
@@ -365,9 +524,9 @@ async def health_check(request: Request):
 @app.post("/query")
 @limiter_decorator()
 async def process_query(req: QueryRequest, request: Request, rag: FullRAGSystem = Depends(get_rag),
-                        storage: _QueryStorage = Depends(get_storage)):
+                        storage: _QueryStorage = Depends(get_storage), user_id: str = "anonymous"):
     try:
-        translator = get_translator()
+        translator = get_fast_translator()
         original_query = req.query
         query_to_process = req.query
         target_lang = _resolve_target_language(req.query, req.language)
@@ -377,18 +536,46 @@ async def process_query(req: QueryRequest, request: Request, rag: FullRAGSystem 
             if translated_query != req.query:
                 query_to_process = translated_query
 
+        if detect_smalltalk(query_to_process):
+            _clear_pending(user_id)
+            try:
+                reply = await asyncio.to_thread(rag.llm_router.generate_chat_reply, query_to_process)
+            except Exception:
+                reply = None
+            return chat_response(original_query, reply)
+
+        profile = _user_profile(user_id)
+        merged = await asyncio.to_thread(_merge_pending, user_id, query_to_process, profile)
+        if merged:
+            return _tool_result_payload(original_query, [merged])
+
+        tools_route = await asyncio.to_thread(
+            route_chat_tools, query_to_process, user_id, _storage,
+            profile=profile,
+        )
+        if tools_route["tools"]:
+            tool = tools_route["tools"][0]
+            if tool.get("status") == "needs_input":
+                _store_pending(user_id, tool.get("type") or "legal_notice", tool.get("params") or {})
+            return _tool_result_payload(original_query, tools_route["tools"])
+
         result = rag.process_query(query_to_process)
         if result.get("status") == "failed":
             return result
+        result["tools"] = tools_route["tools"]
+        result["generation_engine"] = rag.llm_router.generation_engine
         if not result.get("response") or not str(result.get("response")).strip():
             result["response"] = result.get("full_response") or result.get("short_answer") or "No output could be generated for this query."
         result["domain"] = result.get("response_type")
         result["confidence"] = result.get("confidence_score")
 
         if target_lang != "en":
-            _translate_result(result, target_lang, translator)
+            deadline = time.monotonic() + TRANSLATION_SLA_SECONDS
+            corrected = _translate_result(result, target_lang, translator, deadline=deadline)
+            result["translation_corrected"] = corrected
             result["query_language"] = target_lang
-            result["translated"] = True
+            if "translated" not in result:
+                result["translated"] = True
 
         query_id = storage.store_query("anonymous", {
             "query": original_query,
@@ -411,8 +598,8 @@ async def process_query(req: QueryRequest, request: Request, rag: FullRAGSystem 
 @app.post("/query/stream")
 @limiter_decorator()
 async def stream_query(req: QueryRequest, request: Request, rag: FullRAGSystem = Depends(get_rag),
-                       storage: _QueryStorage = Depends(get_storage)):
-    translator = get_translator()
+                       storage: _QueryStorage = Depends(get_storage), user_id: str = "anonymous"):
+    translator = get_fast_translator()
     original_query = req.query
     target_lang = _resolve_target_language(req.query, req.language)
 
@@ -422,25 +609,94 @@ async def stream_query(req: QueryRequest, request: Request, rag: FullRAGSystem =
     async def event_stream():
         try:
             query_to_process = original_query
+            yield sse("status", {"step": "language", "language": target_lang, "message": ""})
             if target_lang != "en" and has_non_latin_script(original_query):
                 yield sse("status", {"step": "translating", "message": f"Reading your question in {target_lang.upper()}..."})
                 translated_query = translator.query_to_english(original_query, target_lang)
                 if translated_query != original_query:
                     query_to_process = translated_query
 
-            yield sse("status", {"step": "retrieving", "message": "Searching applicable laws..."})
-            domain, domain_confidence, _ = rag.domain_classifier.classify(query_to_process)
-            sources = rag.improved_rag.retrieve_with_metadata(query_to_process, top_k=5)
-            context = "\n\n".join(
-                f"[{s.get('act_name') or s.get('source_act')} Section "
-                f"{s.get('section_number') or s.get('section')} - {s.get('section_title') or ''}]\n{s['content']}"
-                for s in sources
+            yield sse("status", {"step": "analyzing", "message": "Analyzing your situation..."})
+            if detect_smalltalk(query_to_process):
+                _clear_pending(user_id)
+                yield sse("status", {"step": "chat", "message": ""})
+                parts = []
+                try:
+                    async for piece in rag.llm_router.stream_chat_reply(query_to_process):
+                        parts.append(piece)
+                        if await request.is_disconnected():
+                            return
+                        yield sse("token", {"text": piece})
+                except Exception:
+                    pass
+                text = "".join(parts).strip() or None
+                yield sse("final", chat_response(original_query, text))
+                return
+
+            profile = _user_profile(user_id)
+            merged = await asyncio.to_thread(_merge_pending, user_id, query_to_process, profile)
+            if merged:
+                yield sse("final", _tool_result_payload(original_query, [merged]))
+                return
+
+            tools_route = await asyncio.to_thread(
+                route_chat_tools, query_to_process, user_id, _storage,
+                profile=profile,
             )
-            available = "\n".join(
-                f"{s.get('act_name') or s.get('source_act')} Section "
-                f"{s.get('section_number') or s.get('section')}: {s.get('section_title') or ''}"
-                for s in sources
-            )
+            tools = tools_route["tools"]
+            if tools:
+                if tools[0].get("status") == "needs_input":
+                    _store_pending(user_id, tools[0].get("type") or "legal_notice", tools[0].get("params") or {})
+                yield sse("final", _tool_result_payload(original_query, tools))
+                return
+
+            prep = rag.prepare_context(query_to_process)
+            if prep.get("needs_more_info"):
+                body = "I need a few more details before I can identify the exact law that applies.\n\n" + \
+                    "\n".join(f"{i + 1}. {q}" for i, q in enumerate(prep.get("questions") or []))
+                result = {
+                    "query": prep["query"],
+                    "status": "needs_more_info",
+                    "response_type": "needs_more_info",
+                    "confidence_score": 0.0,
+                    "short_answer": "I need a few more details before I can identify the exact law that applies.",
+                    "full_response": body,
+                    "response": body,
+                    "missing_facts": prep.get("missing_facts") or [],
+                    "questions": prep.get("questions") or [],
+                    "sources": [],
+                    "applicable_laws": {},
+                    "tools": tools,
+                }
+                yield sse("final", result)
+                return
+
+            domain = prep["domain"]
+            domain_confidence = prep["domain_confidence"]
+            secondary = prep["secondary"]
+            sources = prep["sources"]
+            if not sources:
+                body = "The retrieved provisions do not establish an applicable rule for these facts."
+                for r in (prep.get("rejected") or [])[:5]:
+                    body += f"\n- {r.get('act_name')} {r.get('section_number')}: {r.get('reason')}"
+                result = {
+                    "query": prep["query"],
+                    "status": "success",
+                    "response_type": domain,
+                    "confidence_score": prep.get("confidence_details", {}).get("overall_confidence", 0.0),
+                    "short_answer": body,
+                    "full_response": body,
+                    "response": body,
+                    "sources": [],
+                    "applicable_laws": {},
+                    "tools": tools,
+                }
+                yield sse("final", result)
+                return
+
+            context = prep["context"]
+            available = prep["available"]
+            query_to_process = prep["query"]
 
             yield sse("status", {"step": "generating", "message": "Generating legal analysis..."})
             llm_parts = []
@@ -452,26 +708,41 @@ async def stream_query(req: QueryRequest, request: Request, rag: FullRAGSystem =
 
             llm_response = "".join(llm_parts).strip()
             if not llm_response:
-                raise Exception("No output generated by the language model.")
+                # No tokens streamed: Groq and the local Ollama fallback both
+                # failed. Emit the graceful static error so the UI never sees a
+                # bare SSE error event.
+                if rag.llm_router.last_was_error:
+                    yield sse("status", {"step": "fallback", "message": "AI service is temporarily unavailable. Please try again in a few moments."})
+                    llm_response = json.dumps(LLM_TIMEOUT_ERR)
+                else:
+                    raise Exception("No output generated by the language model.")
 
             yield sse("status", {"step": "formatting", "message": "Finalizing your answer..."})
+            response_type = rag.domain_classifier.get_response_type(domain, secondary)
             result = format_legal_response(
                 query=query_to_process,
                 llm_response=llm_response,
                 sources=sources,
                 domain=domain,
-                confidence=domain_confidence
+                confidence=domain_confidence,
+                response_type=response_type
             )
+            result["generation_engine"] = rag.llm_router.generation_engine
+            result["tools"] = tools
             if not result.get("response"):
                 result["response"] = result.get("full_response") or result.get("short_answer") or "No output could be generated for this query."
             result["domain"] = result.get("response_type")
             result["confidence"] = result.get("confidence_score")
+            result["confidence_details"] = prep.get("confidence_details") or {}
 
             if target_lang != "en":
                 yield sse("status", {"step": "translating", "message": f"Translating answer to {target_lang.upper()}..."})
-                _translate_result(result, target_lang, translator)
+                deadline = time.monotonic() + TRANSLATION_SLA_SECONDS
+                corrected = _translate_result(result, target_lang, translator, deadline=deadline)
+                result["translation_corrected"] = corrected
                 result["query_language"] = target_lang
-                result["translated"] = True
+                if "translated" not in result:
+                    result["translated"] = True
 
             query_id = storage.store_query("anonymous", {
                 "query": original_query,
@@ -505,7 +776,9 @@ async def generate_legal_notice(req: NoticeRequest, user_id: str = "anonymous"):
             "filename": filename,
             "pdf_path": pdf_path,
             "sender_name": case_data["sender_name"],
+            "sender_email": case_data.get("sender_email", ""),
             "recipient_name": case_data["recipient_name"],
+            "recipient_email": case_data.get("recipient_email", ""),
             "issue_type": case_data["issue_type"],
             "demand_amount": case_data["demand_amount"]
         })
@@ -562,6 +835,37 @@ async def generate_rti_app(data: Dict):
     try:
         rti_app = _rti_agent.generate_rti_application(data)
         return {"status": "success", "application": rti_app}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/strategy")
+async def build_strategy(data: Dict):
+    description = str(data.get("case_description") or "").strip()
+    if not description:
+        raise HTTPException(status_code=400, detail="case_description is required")
+    try:
+        strategy = _strategy_agent.build(
+            description=description,
+            domain=data.get("domain"),
+            incident_date=data.get("incident_date"),
+        )
+        return {"status": "success", **strategy}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/document-audit")
+async def audit_document(data: Dict):
+    try:
+        text = str(data.get("text") or data.get("document_text") or "").strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="text is required")
+        return {"status": "success", **(_audit_agent.audit(text, domain=data.get("domain") or "civil"))}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -669,6 +973,56 @@ async def delete_evidence(file_id: str):
     if not _evidence_service.delete_evidence(file_id):
         raise HTTPException(status_code=404, detail="Evidence file not found")
     return {"status": "success", "deleted": file_id}
+
+
+# ── User Document Upload (Google embeddings) ─────────────────────────
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
+
+
+def _get_user_docs_service() -> UserDocsService:
+    if _user_docs_service is None:
+        raise HTTPException(status_code=503, detail="Document service not initialized")
+    return _user_docs_service
+
+
+@app.post("/chat/upload")
+async def chat_upload(file: UploadFile = File(...), user_id: str = "anonymous"):
+    service = _get_user_docs_service()
+    if not (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large (max 25MB)")
+    try:
+        result = service.ingest_pdf(user_id, data, file.filename or "upload.pdf")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("chat upload failed")
+        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "status": "success",
+        "message": f"Uploaded {result['filename']} ({result['chunk_count']} chunks)",
+        **result,
+        "model": getattr(service.provider, "model", service.provider.name),
+    }
+
+
+@app.post("/chat/search-docs")
+async def chat_search_docs(query: str, user_id: str = "anonymous", top_k: int = 5):
+    service = _get_user_docs_service()
+    if not query or len(query.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Query must be at least 3 characters")
+    results = service.search(user_id, query.strip(), top_k=min(top_k, 10))
+    return {"query": query.strip(), "results_count": len(results), "results": results}
+
+
+@app.get("/user/{user_id}/documents")
+async def list_user_documents(user_id: str):
+    service = _get_user_docs_service()
+    return service.list_docs(user_id)
 
 
 # ── Analytics (Phase 13) ───────────────────────────────────────────

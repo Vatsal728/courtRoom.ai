@@ -2,7 +2,9 @@
 """Build knowledge base from PDFs"""
 
 import sys
-sys.path.insert(0, 'D:\\courtRoom.ai')
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from src.full_rag import FullRAGSystem
 
