@@ -1,0 +1,163 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Gujarati:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* ── Light Zinc / LegalAI palette ──────────────────────────── */
+  --color-bg: #fafafa;         /* app background */
+  --color-surface: #fcfcfc;    /* sidebar */
+  --color-card: #ffffff;       /* cards / bubbles */
+  --color-ink: #18181b;        /* primary text */
+  --color-ink-2: #71717a;      /* secondary text */
+  --color-ink-3: #a1a1aa;      /* muted text */
+  --color-line: #e7e7e9;       /* borders */
+  --color-line-2: #f1f1f2;     /* dividers */
+  --color-hover: #f5f5f5;      /* sidebar hover */
+  --color-active: #f1f3f5;     /* sidebar active */
+  --color-btn: #27272a;        /* primary button */
+  --color-btn-hover: #3f3f46;  /* primary button hover */
+  --color-accent: #5f6d79;     /* subtle accent */
+  --color-ok: #16a34a;         /* success */
+  --color-warn: #d97706;       /* warning */
+  --color-err: #dc2626;        /* error */
+
+  --font-sans: "Inter", "Geist", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-gujarati: "Noto Sans Gujarati", "Noto Sans", var(--font-sans);
+
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.04);
+  --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.08);
+}
+
+/* ── Dark Zinc palette (activated by .dark on <html>) ────────── */
+html.dark {
+  --color-bg: #0b0d12;
+  --color-surface: #101319;
+  --color-card: #151922;
+  --color-ink: #ececf1;
+  --color-ink-2: #9aa0ac;
+  --color-ink-3: #626878;
+  --color-line: #232a36;
+  --color-line-2: #1b212b;
+  --color-hover: #1a2029;
+  --color-active: #1e2530;
+  --color-btn: #3f3f46;
+  --color-btn-hover: #52525b;
+  --color-accent: #8fa1b0;
+  --color-ok: #22c55e;
+  --color-warn: #f59e0b;
+  --color-err: #ef4444;
+
+  --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.35);
+  --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+
+
+/* ── Base ─────────────────────────────────────────────────────── */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(95, 109, 121, 0.15);
+}
+
+/* Gujarati text renders with a dedicated Indic font for better glyphs */
+[lang="gu"],
+.font-gujarati {
+  font-family: var(--font-gujarati);
+}
+
+/* Custom slim light scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-ink-3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-2);
+}
+
+/* ── Reusable form component classes ──────────────────────────── */
+@layer components {
+  .ui-label {
+    @apply block text-xs font-semibold text-ink-3 uppercase tracking-wider mb-2;
+  }
+  .ui-input {
+    @apply w-full px-4 py-2.5 bg-card border border-line rounded-xl text-ink placeholder-ink-3 outline-none focus:border-[#cfcfcf] dark:focus:border-[#3a4454] focus:ring-2 focus:ring-black/[0.03] dark:focus:ring-white/[0.04] transition;
+  }
+  .ui-btn-primary {
+    @apply w-full py-3 rounded-xl bg-btn hover:bg-btn-hover text-white font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer;
+  }
+  .ui-panel {
+    @apply bg-card border border-line rounded-2xl shadow-card;
+  }
+}
+
+/* ── Motion ───────────────────────────────────────────────────── */
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes chatFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-fade-in {
+  animation: dropdownFadeIn 0.18s var(--ease-out-expo);
+}
+
+.modal-fade-in {
+  animation: modalFadeIn 0.2s var(--ease-out-expo);
+}
+
+.chat-fade-in {
+  animation: chatFadeIn 0.25s var(--ease-out-expo);
+}
