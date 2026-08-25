@@ -66,7 +66,7 @@
     "chapter": 2,
     "chapter_title": "general explanations",
     "Section": 10,
-    "section_title": "Man and Woman",
+    "section_title": "Man and  Woman",
     "section_desc": "The word “man” denotes a male human being of any age;\nThe word “woman” denotes a female human being of any age."
   },
   {
@@ -88,9 +88,7 @@
     "chapter_title": "general explanations",
     "Section": 13,
     "section_title": "Queen",
-    "section_desc": "[Repealed by the A. O. 1950]",
-    "amendment_note": "[Repealed by the A. O. 1950]",
-    "section_status": "repealed"
+    "section_desc": "[Repealed by the A. O. 1950]"
   },
   {
     "chapter": 2,
@@ -104,9 +102,7 @@
     "chapter_title": "general explanations",
     "Section": 15,
     "section_title": "British India",
-    "section_desc": "Repealed by A. O. 1937.",
-    "amendment_note": "Repealed by A. O. 1937.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by A. O. 1937."
   },
   {
     "chapter": 2,
@@ -238,7 +234,7 @@
     "chapter": 2,
     "chapter_title": "general explanations",
     "Section": 33,
-    "section_title": "Act . Omission",
+    "section_title": "Act .  Omission",
     "section_desc": "The word “act” denotes as well as series of acts as a single act: the word “omission” denotes as well a series of omissions as a single omission."
   },
   {
@@ -308,7 +304,7 @@
     "chapter": 2,
     "chapter_title": "general explanations",
     "Section": 43,
-    "section_title": "Illegal . Legally bound to do",
+    "section_title": "Illegal .  Legally bound to do",
     "section_desc": "The word “illegal” is applicable to everything which is an offence or which is prohibited by law, or which furnishes ground for a civil action; and a person is said to be “legally bound to do” whatever it is illegal in him to omit."
   },
   {
@@ -350,7 +346,7 @@
     "chapter": 2,
     "chapter_title": "general explanations",
     "Section": 49,
-    "section_title": "Year . Month",
+    "section_title": "Year .  Month",
     "section_desc": "Wherever the word “year” or the word “month” is used, it is to be understood that the year or the month is to be reckoned according to the British calendar."
   },
   {
@@ -413,7 +409,7 @@
     "chapter": 3,
     "chapter_title": "punishments",
     "Section": "55A",
-    "section_title": "Definition of appropriate Government",
+    "section_title": "Definition of  appropriate Government",
     "section_desc": "In sections 54 and 55 the expression “appropriate Government” means:"
   },
   {
@@ -421,9 +417,7 @@
     "chapter_title": "punishments",
     "Section": 56,
     "section_title": "Sentence of Europeans and Americans to penal servitude.",
-    "section_desc": "Repealed by the Criminal Law (Removal of Racial Discriminations) Act, 1949 (17 of 1949)",
-    "amendment_note": "Repealed by the Criminal Law (Removal of Racial Discriminations) Act, 1949 (17 of 1949)",
-    "section_status": "repealed"
+    "section_desc": "Repealed by the Criminal Law (Removal of Racial Discriminations) Act, 1949 (17 of 1949)"
   },
   {
     "chapter": 3,
@@ -437,18 +431,14 @@
     "chapter_title": "punishments",
     "Section": 58,
     "section_title": "Offenders sentenced to transportation how dealt with until transported.",
-    "section_desc": "Repealed by the Code of Criminal Procedure (Amendment) Act, 1955 (26 of 1955), S. 117 and Sch.",
-    "amendment_note": "Repealed by the Code of Criminal Procedure (Amendment) Act, 1955 (26 of 1955), S. 117 and Sch.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by the Code of Criminal Procedure (Amendment) Act, 1955 (26 of 1955), S. 117 and Sch."
   },
   {
     "chapter": 3,
     "chapter_title": "punishments",
     "Section": 59,
     "section_title": "Transportation instead of imprisonment.",
-    "section_desc": "Repealed by the Code of Criminal Procedure (Amendment) Act, 1955 (26 of 1955) S. 117 and Sch.",
-    "amendment_note": "Repealed by the Code of Criminal Procedure (Amendment) Act, 1955 (26 of 1955) S. 117 and Sch.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by the Code of Criminal Procedure (Amendment) Act, 1955 (26 of 1955) S. 117 and Sch."
   },
   {
     "chapter": 3,
@@ -462,18 +452,14 @@
     "chapter_title": "punishments",
     "Section": 61,
     "section_title": "Sentence of forfeiture of property.",
-    "section_desc": "Repealed by the Indian Penal Code (Amendment) Act, 1921 (16 of 1921), S. 4.",
-    "amendment_note": "Repealed by the Indian Penal Code (Amendment) Act, 1921 (16 of 1921), S. 4.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by the Indian Penal Code (Amendment) Act, 1921 (16 of 1921), S. 4."
   },
   {
     "chapter": 3,
     "chapter_title": "punishments",
     "Section": 62,
     "section_title": "Forfeiture of property, in respect of offenders punishable with death, transportation or imprisonment.",
-    "section_desc": "Repealed by S. 4 ibid.",
-    "amendment_note": "Repealed by S. 4 ibid.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by S. 4 ibid."
   },
   {
     "chapter": 3,
@@ -1047,9 +1033,7 @@
     "chapter_title": "offences relating to the army, navy and air force",
     "Section": "138A",
     "section_title": "Application of foregoing sections to the Indian Marine Service.",
-    "section_desc": "Repealed by the Amending Act, 1934 (35 of 1934), S. 2 and Sch.",
-    "amendment_note": "Repealed by the Amending Act, 1934 (35 of 1934), S. 2 and Sch.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by the Amending Act, 1934 (35 of 1934), S. 2 and Sch."
   },
   {
     "chapter": 7,
@@ -1161,7 +1145,7 @@
     "chapter_title": "offences against the public tranquillity",
     "Section": "153A",
     "section_title": "Promoting enmity between different groups on ground of religion, race, place of birth, residence, language, etc., and doing acts prejudicial to maintenance of harmony",
-    "section_desc": "Whoever\nby words, either spoken or written, or by signs or by visible representations or otherwise, promotes or attempts to promote, on grounds of religion, race, place of birth, residence, language, caste or community or any other ground whatsoever, disharmony or feelings of enmity, hatred or ill-will between different religious, racial, language or regional groups or castes or communities, or\ncommits any act which is prejudicial to the maintenance of harmony between different religious, racial, language or regional groups or castes or communities, and which disturbs or is likely to disturb the public tranquillity, or\norganizes any exercise, movement, drill or other similar activity intending that the participants in such activity shall use or be trained to use criminal force or violence or knowing it to be likely that the participants in such activity will use or be trained to use criminal force or violence, or participates in such activity intending to use or be trained to use criminal force or violence or knowing it to be likely that the participants in such activity will use or be trained to use criminal force or violence, against any religious, racial, language or regional group or caste or community and such activity for any reason whatsoever causes or is likely to cause fear or alarm or a feeling of insecurity amongst members of such religious, racial, language or regional group or caste or community, shall be punished with imprisonment which may extend to three years, or with fine, or with both.\nOffence committed in place of worship, etc Whoever commits an offence specified in sub-section (1) in any place of worship or in any assembly engaged in the performance of religious worship or religious ceremonies, shall be punished with imprisonment which may extend to five years and shall also be liable to fine."
+    "section_desc": "Whoever\nby words, either spoken or written, or by signs or by visible representations or otherwise, promotes or attempts to promote, on grounds of religion, race, place of birth, residence, language, caste or community or any other ground whatsoever, disharmony or feelings of enmity, hatred or ill-will between different religious, racial, language or regional groups or castes or communities, or\ncommits any act which is prejudicial to the maintenance of harmony between different religious, racial, language or regional groups or castes or communities, and which disturbs or is likely to disturb the public tranquillity, or\norganizes any exercise, movement, drill or other similar activity intending that the participants in such activity shall use or be trained to use criminal force or violence or knowing it to be likely that the participants in such activity will use or be trained to use criminal force or violence, or participates in such activity intending to use or be trained to use criminal force or violence or knowing it to be likely that the participants in such activity will use or be trained to use criminal force or violence, against any religious, racial, language or regional group or caste or community and such activity for any reason whatsoever causes or is likely to cause fear or alarm or a feeling of insecurity amongst members of such religious, racial, language or regional group or caste or community, shall be punished with imprisonment which may extend to three years, or with fine, or with both.\nOffence committed in place of worship, etc   Whoever commits an offence specified in sub-section (1) in any place of worship or in any assembly engaged in the performance of religious worship or religious ceremonies, shall be punished with imprisonment which may extend to five years and shall also be liable to fine."
   },
   {
     "chapter": 8,
@@ -1231,54 +1215,42 @@
     "chapter_title": "offences by or relating to public servants",
     "Section": 161,
     "section_title": "Rep. by the Prevention of Corruption Act, 1988",
-    "section_desc": "Repealed by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31.",
-    "amendment_note": "Repealed by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31."
   },
   {
     "chapter": 9,
     "chapter_title": "offences by or relating to public servants",
     "Section": 162,
     "section_title": "Rep. by the Prevention of Corruption Act, 1988",
-    "section_desc": "Repealed by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31.",
-    "amendment_note": "Repealed by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31."
   },
   {
     "chapter": 9,
     "chapter_title": "offences by or relating to public servants",
     "Section": 163,
     "section_title": "Rep. by the Prevention of Corruption Act, 1988",
-    "section_desc": "Repealed by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31.",
-    "amendment_note": "Repealed by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31."
   },
   {
     "chapter": 9,
     "chapter_title": "offences by or relating to public servants",
     "Section": 164,
     "section_title": "Rep. by the Prevention of Corruption Act, 1988",
-    "section_desc": "Repealed by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31.",
-    "amendment_note": "Repealed by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31."
   },
   {
     "chapter": 9,
     "chapter_title": "offences by or relating to public servants",
     "Section": 165,
     "section_title": "Rep. by the Prevention of Corruption Act, 1988",
-    "section_desc": "Repealed by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31.",
-    "amendment_note": "Repealed by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31."
   },
   {
     "chapter": 9,
     "chapter_title": "offences by or relating to public servants",
     "Section": "165A",
     "section_title": "Rep. by the Prevention of Corruption Act, 1988",
-    "section_desc": "Rep. by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31.",
-    "amendment_note": "Rep. by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31.",
-    "section_status": "omitted"
+    "section_desc": "Rep. by the Prevention of Corruption Act, 1988 (49 of 1988), S. 31."
   },
   {
     "chapter": 9,
@@ -1340,7 +1312,7 @@
     "chapter": 9,
     "chapter_title": "offences relating to elections",
     "Section": "171A",
-    "section_title": "Candidate , Electoral right defined",
+    "section_title": "Candidate ,  Electoral right  defined",
     "section_desc": "“candidate” means a person who has been nominated as a candidate at any election;\n“electoral right” means the right of a person to stand, or not to stand as, or to withdraw from being, a candidate or to vote or refrain from voting at an election."
   },
   {
@@ -1739,10 +1711,8 @@
     "chapter": 11,
     "chapter_title": "false evidence and offences against public justice",
     "Section": "216B",
-    "section_title": "Definition of harbour in sections 212, 216 and 216A.",
-    "section_desc": "Repealed by the Indian Penal Code (Amendment) Act, 1942 (8 of 1942), S. 3.",
-    "amendment_note": "Repealed by the Indian Penal Code (Amendment) Act, 1942 (8 of 1942), S. 3.",
-    "section_status": "repealed"
+    "section_title": "Definition of  harbour  in sections 212, 216 and 216A.",
+    "section_desc": "Repealed by the Indian Penal Code (Amendment) Act, 1942 (8 of 1942), S. 3."
   },
   {
     "chapter": 11,
@@ -1826,9 +1796,7 @@
     "chapter_title": "false evidence and offences against public justice",
     "Section": 226,
     "section_title": "Unlawful return from transportation.",
-    "section_desc": "Repealed by the Code of Criminal Procedure (Amendment) Act, 1955 (26 of 1955), S. 117 and Sch.",
-    "amendment_note": "Repealed by the Code of Criminal Procedure (Amendment) Act, 1955 (26 of 1955), S. 117 and Sch.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by the Code of Criminal Procedure (Amendment) Act, 1955 (26 of 1955), S. 117 and Sch."
   },
   {
     "chapter": 11,
@@ -1869,8 +1837,8 @@
     "chapter": 12,
     "chapter_title": "offences relating to coin and government stamps",
     "Section": 230,
-    "section_title": "Coin defined",
-    "section_desc": "Coin Coin is metal used for the time being as money, and stamped and issued by the authority of some State or Sovereign Power in order to be so used."
+    "section_title": "Coin  defined",
+    "section_desc": "Coin   Coin is metal used for the time being as money, and stamped and issued by the authority of some State or Sovereign Power in order to be so used."
   },
   {
     "chapter": 12,
@@ -2794,7 +2762,7 @@
     "chapter_title": "criminal force and assault",
     "Section": "354A",
     "section_title": "Sexual harassment and punishment for sexual harassment",
-    "section_desc": "A man committing any of the following acts\nphysical contact and advances involving unwelcome and explicit sexual overtures; or\na demand or request for sexual favours; or\nshowing pornography against the will of a woman; or\nmaking sexually coloured remarks, shall be guilty of the offence of sexual harassment1.\nAny man who commits the offence specified in clause , or clause , or clause , of sub-section (1) shall be punished with rigorous imprisonment for a term which may extend to three years, or with fine, or with both.\nAny man who commits the offence specified in clause of sub-section (1) shall be punished with imprisonment of either description for a term which may extend to one year, or with fine, or with both."
+    "section_desc": "A man committing any of the following acts \nphysical contact and advances involving unwelcome and explicit sexual overtures; or\na demand or request for sexual favours; or\nshowing pornography against the will of a woman; or\nmaking sexually coloured remarks, shall be guilty of the offence of sexual harassment1.\nAny man who commits the offence specified in clause , or clause , or clause , of sub-section (1) shall be punished with rigorous imprisonment for a term which may extend to three years, or with fine, or with both.\nAny man who commits the offence specified in clause of sub-section (1) shall be punished with imprisonment of either description for a term which may extend to one year, or with fine, or with both."
   },
   {
     "chapter": 16,
@@ -2815,7 +2783,7 @@
     "chapter_title": "criminal force and assault",
     "Section": "354D",
     "section_title": "Stalking",
-    "section_desc": "(1) Any man who, follows a woman and contacts, or attempts to contact such woman to foster personal interaction repeatedly despite a clear indication of disinterest by such woman; or\nmonitors the use by a woman of the internet, email or any other form of electronic communication,\ncommits the offence of stalking1; Provided that such conduct shall not amount to stalking if the man who pursued it proves that\nit was pursued for the purpose of preventing or detecting crime and the man accused of stalking had been entrusted with the responsibility of prevention and detection of crime by the State; or\nit was pursued under any law or to comply with any condition or requirement imposed by any person under any law; or\nin the particular circumstances such conduct was reasonable and justified.\n(2) Whoever commits the offence of stalking shall be punished on first conviction with imprisonment of either description for a term which may extend to three years, and shall also be liable to fine; and be punished on a second or subsequent conviction, with imprisonment of either description for a term which may extend to five years, and shall also be liable to fine."
+    "section_desc": "(1) Any man who, follows a woman and contacts, or attempts to contact such woman to foster personal interaction repeatedly despite a clear indication of disinterest by such woman; or\nmonitors the use by a woman of the internet, email or any other form of electronic communication,\ncommits the offence of stalking1; Provided that such conduct shall not amount to stalking if the man who pursued it proves that \nit was pursued for the purpose of preventing or detecting crime and the man accused of stalking had been entrusted with the responsibility of prevention and detection of crime by the State; or\nit was pursued under any law or to comply with any condition or requirement imposed by any person under any law; or\nin the particular circumstances such conduct was reasonable and justified.\n(2) Whoever commits the offence of stalking shall be punished on first conviction with imprisonment of either description for a term which may extend to three years, and shall also be liable to fine; and be punished on a second or subsequent conviction, with imprisonment of either description for a term which may extend to five years, and shall also be liable to fine."
   },
   {
     "chapter": 16,
@@ -2955,7 +2923,7 @@
     "chapter_title": "kidnapping, abduction, slavery and forced labour",
     "Section": 370,
     "section_title": "Trafficking of persons",
-    "section_desc": "Whoever, for the purpose of exploitation, (a) recruits, (b) transports, ( c) harbours, (d) transfers, or (e) receives, a person or persons, by\nusing threats, or\nusing force, or any other form of coercion, or\nby abduction, or\nby practising fraud, or deception, or\nby abuse of power, or\nby inducement, including the giving or receiving of payments or benefits, in order to achieve the consent of any person having control over the person recruited, transported, harboured, transferred or received,\ncommits the offence of trafficking1. Explanations\n1. The expression “exploitation” shall include any act of physical exploitation or any form of sexual exploitation, slavery or practices similar to slavery, servitude, or the forced removal of organs.\n2. The consent of the victim is immaterial in determination of the offence of trafficking1.\nWhoever commits the offence of trafficking shall be punished with rigorous imprisonment for a term which shall not be less than seven years, but which may extend to ten years, and shall also be liable to fine.\nWhere the offence involves the trafficking1 of more than one person, it shall be punishable with rigorous imprisonment for a term which shall not be less than ten years but which may extend to imprisonment for life, and shall also be liable to fine.\nWhere the offence involves the trafficking of a minor, it shall be punishable with rigorous imprisonment for a term which shall not be less than ten years, but which may extend to imprisonment for life, and shall also be liable to fine.\nWhere the offence involves the trafficking of more than one minor, it shall be punishable with rigorous imprisonment for a term which shall not be less than fourteen years, but which may extend to imprisonment for life, and shall also be liable to fine.\nIf a person is convicted of the offence of trafficking of minor on more than one occasion, then such person shall be punished with imprisonment for life, which shall mean imprisonment for the remainder of that person’s natural life, and shall also be liable to fine.\nWhen a public servant or a police officer is involved in the trafficking of any person then, such public servant or police officer shall be punished with imprisonment for life, which shall mean imprisonment for the remainder of that person’s natural life, and shall also be liable to fine."
+    "section_desc": "Whoever, for the purpose of exploitation, (a) recruits, (b) transports, ( c) harbours, (d) transfers, or (e) receives, a person or persons, by \nusing threats, or\nusing force, or any other form of coercion, or\nby abduction, or\nby practising fraud, or deception, or\nby abuse of power, or\nby inducement, including the giving or receiving of payments or benefits, in order to achieve the consent of any person having control over the person recruited, transported, harboured, transferred or received,\ncommits the offence of trafficking1. Explanations\n1. The expression “exploitation” shall include any act of physical exploitation or any form of sexual exploitation, slavery or practices similar to slavery, servitude, or the forced removal of organs.\n2. The consent of the victim is immaterial in determination of the offence of trafficking1.\nWhoever commits the offence of trafficking shall be punished with rigorous imprisonment for a term which shall not be less than seven years, but which may extend to ten years, and shall also be liable to fine.\nWhere the offence involves the trafficking1 of more than one person, it shall be punishable with rigorous imprisonment for a term which shall not be less than ten years but which may extend to imprisonment for life, and shall also be liable to fine.\nWhere the offence involves the trafficking of a minor, it shall be punishable with rigorous imprisonment for a term which shall not be less than ten years, but which may extend to imprisonment for life, and shall also be liable to fine.\nWhere the offence involves the trafficking of more than one minor, it shall be punishable with rigorous imprisonment for a term which shall not be less than fourteen years, but which may extend to imprisonment for life, and shall also be liable to fine.\nIf a person is convicted of the offence of trafficking of minor on more than one occasion, then such person shall be punished with imprisonment for life, which shall mean imprisonment for the remainder of that person’s natural life, and shall also be liable to fine.\nWhen a public servant or a police officer is involved in the trafficking of any person then, such public servant or police officer shall be punished with imprisonment for life, which shall mean imprisonment for the remainder of that person’s natural life, and shall also be liable to fine."
   },
   {
     "chapter": 16,
@@ -3004,7 +2972,7 @@
     "chapter_title": "sexual offences",
     "Section": 376,
     "section_title": "Punishment for rape",
-    "section_desc": "Whoever, except in the cases provided for in sub-section (2), commits rape, shall be punished with rigorous imprisonment of either description for a term which shall not be less than ten years, but which may extend to imprisonment for life, and shall also be liable to fine.\nWhoever\nbeing a police officer, commits rape,\nwithin the limits of the police station to which such police officer is appointed; or\nin the premises of any station house; or\non a woman in such police officer’s custody or in the custody of a police officer subordinate to such police officer; or\nbeing a public servant, commits rape on a woman in such public servant’s custody or in the custody of a public servant subordinate to such public servant; or\nbeing a member of the armed forces deployed in an area by the Central or a State Government commits rape in such area; or\nbeing on the management or on the staff of a jail, remand home or other place of custody established by or under any law for the time being in force or of a women’s or children’s institution, commits rape on any inmate of such jail, remand home, place or institution; or\nbeing on the management or on the staff of a hospital, commits rape on a woman in that hospital; or\nbeing a relative, guardian or teacher of, or a person in a position of trust or authority towards the woman, commits rape on such woman; or\ncommits rape during communal or sectarian violence; or\ncommits rape on a woman knowing her to be pregnant; or\ncommits rape, on a woman incapable of giving consent; or\nbeing in a position of control or dominance over a woman, commits rape on such woman; or\ncommits rape on a woman suffering from mental or physical disability; or\nwhile committing rape causes grievous bodily harm or maims or disfigures or endangers the life of a woman; or\ncommits rape repeatedly on the same woman,\nshall be punished with rigorous imprisonment for a term which shall not be less than ten years, but which may extend to imprisonment for life, which shall mean imprisonment for the remainder of that person’s natural life, and shall also be liable to fine.\nWhoever, commits rape on a woman under sixteen years of age shall be punished with rigorous imprisonment for a term which shall not be less than twenty years, but which may extend to imprisonment for life, which shall mean imprisonment for the remainder of that person’s natural life, and shall also be liable to fine:1\nProvided that such fine shall be just and reasonable to meet the medical expenses and rehabilitation of the victim:\nProvided further that any fine imposed under this sub-section shall be paid to the victim.\nExplanations\nFor the purposes of sub-section 2\n“armed forces” means the naval, military and air forces and includes any member of the Armed Forces constituted under any Law for the time being in force, including the paramilitary forces and any auxiliary forces that are under the control of the Central Government, or the State Government;\n“hospital” means the precincts of the hospital and includes the precincts of any institution for the reception and treatment of persons during convalescence or of persons requiring medical attention or rehabilitation;\n“police officer” shall have the same meaning as assigned to the expression “police” under the Police Act, 1861;\n“women’s or children’s institution” means an institution, whether called an orphanage or a home for neglected women or children or a widow’s home or an institution called by any other name, which is established and maintained for the reception and care of women or children."
+    "section_desc": "Whoever, except in the cases provided for in sub-section (2), commits rape, shall be punished with rigorous imprisonment of either description for a term which shall not be less than ten years, but which may extend to imprisonment for life, and shall also be liable to fine.\nWhoever \nbeing a police officer, commits rape,\nwithin the limits of the police station to which such police officer is appointed; or\nin the premises of any station house; or\non a woman in such police officer’s custody or in the custody of a police officer subordinate to such police officer; or\nbeing a public servant, commits rape on a woman in such public servant’s custody or in the custody of a public servant subordinate to such public servant; or\nbeing a member of the armed forces deployed in an area by the Central or a State Government commits rape in such area; or\nbeing on the management or on the staff of a jail, remand home or other place of custody established by or under any law for the time being in force or of a women’s or children’s institution, commits rape on any inmate of such jail, remand home, place or institution; or\nbeing on the management or on the staff of a hospital, commits rape on a woman in that hospital; or\nbeing a relative, guardian or teacher of, or a person in a position of trust or authority towards the woman, commits rape on such woman; or\ncommits rape during communal or sectarian violence; or\ncommits rape on a woman knowing her to be pregnant; or\ncommits rape, on a woman incapable of giving consent; or\nbeing in a position of control or dominance over a woman, commits rape on such woman; or\ncommits rape on a woman suffering from mental or physical disability; or\nwhile committing rape causes grievous bodily harm or maims or disfigures or endangers the life of a woman; or\ncommits rape repeatedly on the same woman,\nshall be punished with rigorous imprisonment for a term which shall not be less than ten years, but which may extend to imprisonment for life, which shall mean imprisonment for the remainder of that person’s natural life, and shall also be liable to fine.\nWhoever, commits rape on a woman under sixteen years of age shall be punished with rigorous imprisonment for a term which shall not be less than twenty years, but which may extend to imprisonment for life, which shall mean imprisonment for the remainder of that person’s natural life, and shall also be liable to fine:1\nProvided that such fine shall be just and reasonable to meet the medical expenses and rehabilitation of the victim:\nProvided further that any fine imposed under this sub-section shall be paid to the victim.\nExplanations\nFor the purposes of sub-section 2\n“armed forces” means the naval, military and air forces and includes any member of the Armed Forces constituted under any Law for the time being in force, including the paramilitary forces and any auxiliary forces that are under the control of the Central Government, or the State Government;\n“hospital” means the precincts of the hospital and includes the precincts of any institution for the reception and treatment of persons during convalescence or of persons requiring medical attention or rehabilitation;\n“police officer” shall have the same meaning as assigned to the expression “police” under the Police Act, 1861;\n“women’s or children’s institution” means an institution, whether called an orphanage or a home for neglected women or children or a widow’s home or an institution called by any other name, which is established and maintained for the reception and care of women or children."
   },
   {
     "chapter": 16,
@@ -3144,7 +3112,7 @@
     "chapter_title": "extortion",
     "Section": 388,
     "section_title": "Extortion by threat of accusation of an offence punishable with death or imprisonment for life, etc",
-    "section_desc": "Whoever commits extortion by putting any person in fear of an accusation against that person or any other, of having committed or attempted to commit any offence punishable with death, or with imprisonment for life, or with imprisonment for a term which may extend to ten years, or of having attempted to induce any other person to commit such offence, shall be punished with imprisonment of either description for a term which may extend to ten years, and shall also be liable to fine;"
+    "section_desc": "Whoever commits extortion by putting any person in fear of an accusation against that person or any other, of having committed or attempted to commit any offence punishable with death, or with imprisonment for life, or with imprisonment for a term which may extend to ten years, or of having attempted to induce any other person to commit such offence, shall  be punished with imprisonment of either description for a term which may extend to ten years, and shall also be liable to fine;"
   },
   {
     "chapter": 17,
@@ -3158,7 +3126,7 @@
     "chapter_title": "robbery and dacoity",
     "Section": 390,
     "section_title": "Robbery",
-    "section_desc": "In all robbery there is either theft or extortion. When theft is robbery Theft is “robbery” if, in order to the committing of the theft, or in committing the theft, or in carrying away or attempting to carry away property obtained by the theft, the offender, for that end, voluntarily causes or attempts to cause to any person death or hurt or wrongful restraint, or fear of instant death or of instant hurt, or of instant wrongful restraint. When extortion is robbery Extortion is “robbery” if the offender, at the time of committing the extortion, is in the presence of the person put in fear, and commits the extortion by putting that person in fear of instant death, of instant hurt, or of instant wrongful restraint to that person or to some other person, and, by so putting in fear, induces the person, so put in fear then and there to deliver up the thing extorted."
+    "section_desc": "In all robbery there is either theft or extortion. When theft is robbery   Theft is “robbery” if, in order to the committing of the theft, or in committing the theft, or in carrying away or attempting to carry away property obtained by the theft, the offender, for that end, voluntarily causes or attempts to cause to any person death or hurt or wrongful restraint, or fear of instant death or of instant hurt, or of instant wrongful restraint. When extortion is robbery   Extortion is “robbery” if the offender, at the time of committing the extortion, is in the presence of the person put in fear, and commits the extortion by putting that person in fear of instant death, of instant hurt, or of instant wrongful restraint to that person or to some other person, and, by so putting in fear, induces the person, so put in fear then and there to deliver up the thing extorted."
   },
   {
     "chapter": 17,
@@ -3781,9 +3749,7 @@
     "chapter_title": "offences relating to documents and to property marks",
     "Section": 478,
     "section_title": "Trade Mark.",
-    "section_desc": "Repealed by the Trade and Merchandise Marks Act, 1958 (43 of 1958), S. 135 and Sch.",
-    "amendment_note": "Repealed by the Trade and Merchandise Marks Act, 1958 (43 of 1958), S. 135 and Sch.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by the Trade and Merchandise Marks Act, 1958 (43 of 1958), S. 135 and Sch."
   },
   {
     "chapter": 18,
@@ -3797,9 +3763,7 @@
     "chapter_title": "offences relating to documents and to property marks",
     "Section": 480,
     "section_title": "Using a false trade mark.",
-    "section_desc": "Repealed by the Trade and Merchandise Marks Act, 1958 (43 of 1958), S. 135 and Sch.",
-    "amendment_note": "Repealed by the Trade and Merchandise Marks Act, 1958 (43 of 1958), S. 135 and Sch.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by the Trade and Merchandise Marks Act, 1958 (43 of 1958), S. 135 and Sch."
   },
   {
     "chapter": 18,
@@ -3848,7 +3812,7 @@
     "chapter_title": "offences relating to documents and to property marks",
     "Section": 487,
     "section_title": "Making a false mark upon any receptacle containing goods",
-    "section_desc": "Whoever makes any false mark upon any case, package or other receptacle containing goods, in a manner reasonably calculated to cause any public servant or any other person to believe that such receptacle contains goods which it does not contain or that it does not contain goods which it does contain,\nOr that the goods contained in such receptacle are of a nature or quality different from the real nature or quality thereof, shall, unless he proves that he acted without intent to defraud, be punished with imprisonment of either description for a term which may extend to three years, or with fine, or with both."
+    "section_desc": "Whoever makes any false mark upon any case, package or other receptacle containing goods, in a manner reasonably calculated to cause any public servant or any other person to believe that such receptacle contains goods which it does not contain or that it does not contain goods which it does contain, \nOr that the goods contained in such receptacle are of a nature or quality different from the real nature or quality thereof, shall, unless he proves that he acted without intent to defraud, be punished with imprisonment of either description for a term which may extend to three years, or with fine, or with both."
   },
   {
     "chapter": 18,
@@ -3904,9 +3868,7 @@
     "chapter_title": "the criminal breach  contracts  service",
     "Section": 490,
     "section_title": "Breach of contract of service during voyage or journey.",
-    "section_desc": "Repealed by the Workmen’s Breach of Contract (Repealing) Act, 1925 (3 of 1925), S. 2 and Sch.",
-    "amendment_note": "Repealed by the Workmen’s Breach of Contract (Repealing) Act, 1925 (3 of 1925), S. 2 and Sch.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by the Workmen’s Breach of Contract (Repealing) Act, 1925 (3 of 1925), S. 2 and Sch."
   },
   {
     "chapter": 19,
@@ -3920,9 +3882,7 @@
     "chapter_title": "the criminal breach  contracts  service",
     "Section": 492,
     "section_title": "Breach of contract to serve at distant place to which servant is conveyed at master",
-    "section_desc": "Repealed by the Workmen’s Breach of Contract (Repealing) Act, 1925 (3 of 1925), S. 2 and Sch.",
-    "amendment_note": "Repealed by the Workmen’s Breach of Contract (Repealing) Act, 1925 (3 of 1925), S. 2 and Sch.",
-    "section_status": "repealed"
+    "section_desc": "Repealed by the Workmen’s Breach of Contract (Repealing) Act, 1925 (3 of 1925), S. 2 and Sch."
   },
   {
     "chapter": 20,

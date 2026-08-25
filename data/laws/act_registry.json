@@ -1,0 +1,240 @@
+{
+  "version": 1,
+  "notes": "Source of truth for legal status of every act in the corpus. 'status': active | historical | pending. 'replaced_by'/'replaces' use canonical act names from the 'acts' keys. 'aliases' are the exact act_name strings produced by the pipeline maps.",
+  "acts": {
+    "Bharatiya Nyaya Sanhita 2023": {
+      "status": "active",
+      "effective_from": "2024-07-01",
+      "replaces": ["Indian Penal Code 1860"],
+      "jurisdiction": "Pan-India",
+      "domain": "criminal",
+      "source_type": "primary",
+      "aliases": ["Bharatiya Nyaya Sanhita 2023"]
+    },
+    "Indian Penal Code 1860": {
+      "status": "historical",
+      "effective_until": "2024-06-30",
+      "replaced_by": "Bharatiya Nyaya Sanhita 2023",
+      "jurisdiction": "Pan-India",
+      "domain": "criminal",
+      "source_type": "primary",
+      "aliases": [
+        "Indian Penal Code 1860",
+        "Indian Penal Code 1860 (mapped to BNS 2023)",
+        "Indian Penal Code 1860 (Section Notes)"
+      ]
+    },
+    "Bharatiya Nagarik Suraksha Sanhita 2023": {
+      "status": "active",
+      "effective_from": "2024-07-01",
+      "replaces": ["Code of Criminal Procedure 1973"],
+      "jurisdiction": "Pan-India",
+      "domain": "criminal",
+      "source_type": "primary",
+      "aliases": ["Bharatiya Nagarik Suraksha Sanhita 2023"]
+    },
+    "Code of Criminal Procedure 1973": {
+      "status": "historical",
+      "effective_until": "2024-06-30",
+      "replaced_by": "Bharatiya Nagarik Suraksha Sanhita 2023",
+      "jurisdiction": "Pan-India",
+      "domain": "criminal",
+      "source_type": "primary",
+      "aliases": [
+        "Code of Criminal Procedure 1973",
+        "Code of Criminal Procedure 1973 (mapped to BNSS 2023)",
+        "Code of Criminal Procedure 1973 (Section Notes)"
+      ]
+    },
+    "Bharatiya Sakshya Adhiniyam 2023": {
+      "status": "active",
+      "effective_from": "2024-07-01",
+      "replaces": ["Indian Evidence Act 1872"],
+      "jurisdiction": "Pan-India",
+      "domain": "criminal",
+      "source_type": "primary",
+      "aliases": ["Bharatiya Sakshya Adhiniyam 2023"]
+    },
+    "Indian Evidence Act 1872": {
+      "status": "historical",
+      "effective_until": "2024-06-30",
+      "replaced_by": "Bharatiya Sakshya Adhiniyam 2023",
+      "jurisdiction": "Pan-India",
+      "domain": "criminal",
+      "source_type": "primary",
+      "aliases": [
+        "Indian Evidence Act 1872",
+        "Indian Evidence Act 1872 (mapped to BSA 2023)"
+      ]
+    },
+    "Code on Wages 2019": {
+      "status": "active",
+      "effective_from": "2025-11-21",
+      "replaces": ["Payment of Wages Act 1936", "Minimum Wages Act 1948"],
+      "jurisdiction": "Pan-India",
+      "domain": "labor",
+      "source_type": "primary",
+      "aliases": ["Code on Wages 2019"]
+    },
+    "Payment of Wages Act 1936": {
+      "status": "historical",
+      "effective_until": "2025-11-20",
+      "replaced_by": "Code on Wages 2019",
+      "jurisdiction": "Pan-India",
+      "domain": "labor",
+      "source_type": "primary",
+      "aliases": ["Payment of Wages Act 1936"]
+    },
+    "Minimum Wages Act 1948": {
+      "status": "historical",
+      "effective_until": "2025-11-20",
+      "replaced_by": "Code on Wages 2019",
+      "jurisdiction": "Pan-India",
+      "domain": "labor",
+      "source_type": "primary",
+      "aliases": ["Minimum Wages Act 1948"]
+    },
+    "Industrial Relations Code 2020": {
+      "status": "pending",
+      "effective_from": "2026-11-21",
+      "replaces": ["Industrial Disputes Act 1947"],
+      "jurisdiction": "Pan-India",
+      "domain": "labor",
+      "source_type": "primary",
+      "aliases": ["Industrial Relations Code 2020"]
+    },
+    "Industrial Disputes Act 1947": {
+      "status": "active",
+      "effective_until": "2026-11-20",
+      "replaced_by": "Industrial Relations Code 2020",
+      "jurisdiction": "Pan-India",
+      "domain": "labor",
+      "source_type": "primary",
+      "aliases": ["Industrial Disputes Act 1947"]
+    },
+    "Code on Social Security 2020": {
+      "status": "active",
+      "effective_from": "2025-11-21",
+      "jurisdiction": "Pan-India",
+      "domain": "labor",
+      "source_type": "primary",
+      "aliases": ["Code on Social Security 2020"]
+    },
+    "Occupational Safety, Health and Working Conditions Code 2020": {
+      "status": "active",
+      "effective_from": "2025-11-21",
+      "jurisdiction": "Pan-India",
+      "domain": "labor",
+      "source_type": "primary",
+      "aliases": ["Occupational Safety, Health and Working Conditions Code 2020", "OSHWC Code 2020"]
+    },
+    "Code of Civil Procedure 1908": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "civil",
+      "source_type": "primary",
+      "aliases": ["Code of Civil Procedure 1908", "Code of Civil Procedure 1908 (Chart Notes)"]
+    },
+    "Constitution of India 1950": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "constitutional",
+      "source_type": "primary",
+      "aliases": [
+        "Constitution of India 1950",
+        "Constitution of India 1950 (Amendments)",
+        "Constitution of India 1950 (Constitutional Bodies)",
+        "Constitution of India 1950 (Fundamental Rights)"
+      ]
+    },
+    "Consumer Protection Act 2019": {
+      "status": "active",
+      "effective_from": "2019-07-20",
+      "jurisdiction": "Pan-India",
+      "domain": "consumer",
+      "source_type": "primary",
+      "aliases": ["Consumer Protection Act 2019"]
+    },
+    "Right to Information Act 2005": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "civil",
+      "source_type": "primary",
+      "aliases": ["Right to Information Act 2005"]
+    },
+    "Information Technology Act 2000": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "cyber",
+      "source_type": "primary",
+      "aliases": ["Information Technology Act 2000"]
+    },
+    "Negotiable Instruments Act 1881": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "commercial",
+      "source_type": "primary",
+      "aliases": ["Negotiable Instruments Act 1881"]
+    },
+    "Hindu Marriage Act 1955": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "family",
+      "source_type": "primary",
+      "aliases": ["Hindu Marriage Act 1955"]
+    },
+    "Indian Divorce Act 1869": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "family",
+      "source_type": "primary",
+      "aliases": ["Indian Divorce Act 1869"]
+    },
+    "Motor Vehicles Act 1988": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "civil",
+      "source_type": "primary",
+      "aliases": ["Motor Vehicles Act 1988"]
+    },
+    "Bombay Rents, Hotel and Lodging House Rates Control Act 1947 (Gujarat)": {
+      "status": "active",
+      "jurisdiction": "Gujarat",
+      "domain": "rent",
+      "source_type": "primary",
+      "aliases": [
+        "Bombay Rents, Hotel and Lodging House Rates Control Act 1947 (Gujarat)",
+        "Bombay Rents Hotel and Lodging House Rates Control Act 1947"
+      ]
+    },
+    "Digital Personal Data Protection Act 2023": {
+      "status": "active",
+      "effective_from": "2024-01-11",
+      "jurisdiction": "Pan-India",
+      "domain": "cyber",
+      "source_type": "primary",
+      "aliases": ["Digital Personal Data Protection Act 2023", "DPDP Act 2023"]
+    },
+    "Indian Contract Act 1872": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "commercial",
+      "source_type": "primary",
+      "aliases": ["Indian Contract Act 1872"]
+    },
+    "Tax Laws of India (Guide)": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "tax",
+      "source_type": "secondary",
+      "aliases": ["Tax Laws of India (Guide)"]
+    },
+    "Muslim Law (Triple Talaq)": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "family",
+      "source_type": "secondary",
+      "aliases": ["Muslim Law (Triple Talaq)"]
+    }
+  }
+}
