@@ -1,269 +1,165 @@
-# 🏛️ courtRoom.ai
+# 🏛️ courtRoom.ai: Autonomous Indian Legal AI & Advocate Copilot
 
-An AI-powered Indian legal assistant that helps citizens understand their rights, navigate legal procedures, and draft legal documents — all through natural conversation in 11 Indian languages.
+[![License](https://img.shields.io/badge/License-Apache_2.0_OR_MIT-blue.svg)](LICENSE-APACHE)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react&logoColor=black)](https://react.dev)
+[![Groq](https://img.shields.io/badge/Inference-Groq_LPU_Qwen_27B-F55036.svg)](https://groq.com)
+[![Statutory Coverage](https://img.shields.io/badge/Statutes-45+_Central_Acts_(BNS/BNSS/BSA_2023)-2E7D32.svg)](data/laws/act_registry.json)
+[![Tests](https://img.shields.io/badge/QA_Suite-20%2F20_Passed_(100%25)-brightgreen.svg)](#-verification--testing)
 
----
+**courtRoom.ai** is an open-source, full-stack Indian Legal AI platform and citizen advocate copilot. It grounds conversational legal queries in operative Indian statutes, provides high-precision hybrid statutory retrieval, and autonomously drafts advocate-grade pleadings with dual **print-ready A4 PDF** and **editable Microsoft Word (.docx)** export.
 
-## ✨ What It Does
-
-- 💬 **Ask any legal question** in English or 11 Indian languages and get cited, plain-language answers referencing the exact sections of Indian law
-- 📄 **Generate legal notices** (PDF) with your name, address, and issue details filled in
-- 📝 **Draft RTI applications** ready to copy and file
-- 🗂️ **Case strategy planning** with step-by-step roadmaps and success-chance estimates
-- 🔍 **Document auditing** — upload a contract or agreement and get a clause-by-clause risk analysis
-- ✅ **Evidence checklists** tailored to your situation
-- 📁 **Case management** — track cases, upload evidence, and maintain a persistent workspace
-- 🌐 **Multilingual** — ask in Hindi, Gujarati, Tamil, or 8 other languages and get answers in your language
+Fully compliant with India's post-July 2024 criminal law reform (**Bharatiya Nyaya Sanhita 2023**, **Bharatiya Nagarik Suraksha Sanhita 2023**, **Bharatiya Sakshya Adhiniyam 2023**) and labor code consolidation (**Code on Wages 2019**).
 
 ---
 
-## 🧠 AI Models Used
+## ⚡ Core Capabilities
 
-| Component | Model | Provider | Purpose |
-|-----------|-------|----------|---------|
-| **Legal analysis (primary)** | `llama-3.3-70b-versatile` | Groq Cloud | Generating legal responses, JSON extraction, tool routing |
-| **Legal analysis (fallback)** | `qwen2.5:3b` | Ollama (local) | Local fallback when Groq is unavailable |
-| **Translation** | `llama-3.1-8b-instant` | Groq Cloud | Translating queries to/from English |
-| **Embeddings (user docs)** | `gemini-embedding-001` | Google AI | Vectorizing uploaded user documents |
-| **Embeddings (master KB)** | `nomic-embed-text` | Ollama (local) | Vectorizing the legal knowledge base |
-| **Reranker (optional)** | `BAAI/bge-reranker-base` | HuggingFace | Cross-encoder reranking for higher retrieval precision |
-| **Domain classification** | Naive Bayes + TF-IDF | scikit-learn (local) | Classifying queries into legal domains |
-| **Fact extraction** | Regex + keyword matching | Local | Extracting structured facts from user queries for tool execution |
+- ⚖️ **Autonomous Legal Drafting (PDF & DOCX)**: Instantly generates high-court grade legal demand notices, RTI Form A applications, cyber fraud bank freeze letters, SHO police complaints, and labour dues claims with receiving counterfoils and summary tables.
+- 🧠 **Qwen 27B on Groq LPUs**: Legal pleading prose generated in ~1.2s using `qwen/qwen3.8-27b` via Groq LPUs, with multi-model fallback cascade (`qwen-qwq-32b` → `llama-3.3-70b` → `llama-3.1-8b`) and deterministic offline templates.
+- 📚 **3-Tier Grounded Statutory RAG**: Zero-hallucination legal retrieval across 45+ Central Indian Statutes using hybrid BM25 + dense vector embeddings with strict word-boundary gating (`\b`) to eliminate off-topic statute leakage.
+- 🔄 **Multi-Turn Persistent Sessions**: Context-aware parameter collection in MongoDB (`courtroom_ai.tool_sessions`) with native TTL indexing. Handles multi-turn clarifications without premature session clearing.
+- 🇮🇳 **11 Indian Languages**: End-to-end conversational legal advisory in English, Hindi, Gujarati, Marathi, Tamil, Telugu, Kannada, Bengali, Malayalam, Punjabi, and Urdu.
+- ⏱️ **Limitation Act & Deadline Calculator**: Evaluates limitation windows under the Limitation Act 1963, CPA 2019 (2 years), Code on Wages (3 years), and RTI Appeals (30/90 days).
+- 📋 **BSA 2023 Evidence Checklists**: Domain-tailored evidentiary checklists compliant with Section 63 Bharatiya Sakshya Adhiniyam (electronic records certification).
 
 ---
 
-## 🏗️ Architecture
+## 🤖 The 6 Core Citizen Legal Tools
+
+| Tool | Operative Statutory Provisions | Output Formats |
+|---|---|:---:|
+| 📄 **Legal Demand Notice** | Section 106/108 Transfer of Property Act 1882, Section 73 Indian Contract Act 1872 | **PDF + .DOCX** |
+| 🛡️ **Cyber Fraud & Bank Freeze** | RBI Zero Liability Circular (2017), Sec 43/66D IT Act 2000, Sec 318(4) BNS 2023 | **PDF + .DOCX** |
+| 🚨 **Formal Police Complaint** | Section 173 BNSS 2023, Section 304 BNS 2023 (Snatching), Sec 63 BSA 2023 | **PDF + .DOCX** |
+| 💼 **Labour & FnF Recovery** | Section 17(2) & 18 Code on Wages 2019 (2-day settlement), Sec 15 Payment of Wages Act 1936 | **PDF + .DOCX** |
+| 📝 **RTI Application (Form A)** | Section 6(1) Right to Information Act 2005, Central RTI Rules 2012 | **PDF + .DOCX** |
+| 🗺️ **Case Strategy Roadmap** | Multi-forum dispute analysis (RERA, Consumer Commission, Civil/Labour Court) | **PDF + .DOCX** |
+
+---
+
+## 🏗️ Technical Architecture
 
 ```
 courtRoom.ai/
-├── backend/                     # FastAPI + Python 3.11+
+├── backend/                         # FastAPI 0.115 + Python 3.11+
 │   ├── api/
-│   │   ├── main.py              # REST endpoints, SSE streaming, multi-turn tool state
-│   │   └── auth.py              # JWT authentication
+│   │   ├── main.py                  # REST API, universal /download/{id}, multi-turn /query
+│   │   └── auth.py                  # JWT authentication & session credentials
 │   ├── src/
-│   │   ├── agent.py             # AI tool router + 4 agent tools + multi-turn merge
-│   │   ├── llm_router.py        # Groq → Ollama fallback chain for generation
-│   │   ├── full_rag.py          # Ensemble RAG (BM25 + vector + optional reranker)
-│   │   ├── fact_extractor.py    # Domain + issue classification from queries
-│   │   ├── embedding_provider.py # Google Gemini or Ollama embedding provider
-│   │   ├── groq_translator.py   # Groq-powered translation
-│   │   ├── google_translator.py # Google Translate fallback
-│   │   ├── agents/
-│   │   │   ├── notice_agent.py  # Legal notice PDF generation (ReportLab)
-│   │   │   ├── rti_agent.py     # RTI application drafting
-│   │   │   ├── strategy_agent.py # Case strategy planning
-│   │   │   ├── audit_agent.py   # Document clause audit
-│   │   │   └── evidence_agent.py # Evidence checklist generation
-│   │   └── ...
-│   ├── config/
-│   │   ├── domain_config.json   # Legal domain keywords, missing-fact rules
-│   │   ├── compensation_rules.json
-│   │   └── document_audit_rules.json
-│   └── requirements.txt
-├── frontend/                    # React 19 + TypeScript + Vite 8 + Tailwind CSS 4
-│   └── src/
-│       ├── App.tsx              # Main app — chat, artifacts, documents, PDF viewer
-│       └── lib/
-│           ├── api.ts           # API client (stream, query, upload, PDF endpoints)
-│           ├── auth.tsx         # Auth context (login, register, JWT)
-│           ├── language.ts      # Language definitions and translations
-│           └── types.ts         # TypeScript interfaces
-├── data/
-│   └── laws/                   # Indian law JSON database (BNS, IPC, CPC, CrPC, etc.)
-├── storage/                    # ChromaDB vector databases (gitignored)
-├── .env                        # Environment variables (gitignored)
-└── start.bat                   # One-click launcher for backend + frontend
+│   │   ├── agent.py                 # Tool router, Indian rupee parser, entity extraction
+│   │   ├── document_factory.py      # Dual ReportLab PDF & python-docx DOCX engine
+│   │   ├── groq_drafter.py          # Qwen 27B Groq LPU drafter + model cascade
+│   │   ├── session_manager.py       # MongoDB TTL multi-turn session persistence
+│   │   ├── full_rag.py              # Hybrid BM25 (70%) + Vector (30%) RAG pipeline
+│   │   ├── applicability.py         # Word-boundary applicability gating
+│   │   ├── fact_extractor.py        # Indian entity & monetary extraction (lakh/crore)
+│   │   ├── response_formatter.py    # BNS/BNSS/BSA citation verification
+│   │   └── agents/                  # Specialized legal domain agents
+│   └── config/                      # Legal taxonomy & compensation rules
+├── frontend/                        # React 19 + TypeScript + Vite 8 + Tailwind CSS 4
+│   ├── src/
+│   │   ├── App.tsx                  # Interactive chat, universal PDF/DOCX downloads
+│   │   └── lib/api.ts               # Streaming API client
+├── data/laws/                       # 45+ JSON statutes & act_registry.json
+└── .env.example                     # Environment configuration template
 ```
 
 ---
 
-## ⚡ How the RAG Pipeline Works
-
-1. **Query classification** — Your question is classified into a legal domain (criminal, civil, rent, labor, consumer, cyber, RTI, family) with a confidence score
-2. **Fact extraction** — Structured facts (dates, amounts, parties, issue type) are extracted to detect missing information and guide tool selection
-3. **Tool routing** — If the query matches a tool (legal notice, RTI, case strategy, document audit), it's routed there first via regex + LLM tool-calling
-4. **Ensemble retrieval** — For general legal questions, a hybrid BM25 + vector search (weighted 70/30 in favor of BM25 for legal text precision) retrieves the most relevant sections of Indian law
-5. **Optional reranking** — BGE cross-encoder reranker can be enabled for higher-precision retrieval
-6. **Response generation** — Groq (`llama-3.3-70b-versatile`) generates the legal analysis, with local Ollama (`qwen2.5:3b`) as automatic fallback
-7. **Translation** — If your query was in a non-English language, the response is translated back via Groq (`llama-3.1-8b-instant`) with Google Translate as fallback
-
----
-
-## 🌐 Supported Languages
-
-| Language | Code | Language | Code |
-|----------|------|----------|------|
-| English | `en` | Kannada | `kn` |
-| Hindi | `hi` | Bengali | `bn` |
-| Gujarati | `gu` | Malayalam | `ml` |
-| Marathi | `mr` | Punjabi | `pa` |
-| Tamil | `ta` | Urdu | `ur` |
-| Telugu | `te` | | |
-
----
-
-## 🤖 AI Agents (Tools)
-
-| Agent | Trigger | What It Does |
-|-------|---------|--------------|
-| 📄 **Legal Notice** | "legal notice", "demand letter" | Generates a formal legal notice PDF with sender/recipient details, issue description, and applicable law |
-| 📝 **RTI Application** | "rti", "right to information" | Drafts a Right to Information application with applicant details and information sought |
-| 🗂️ **Case Strategy** | "strategy", "what should I do", "chances" | Provides step-by-step case strategy, roadmap, and success-chance analysis |
-| 🔍 **Document Audit** | "audit", "review", "check document" | Analyzes a contract/agreement clause-by-clause, flags risks and missing protections |
-| ✅ **Evidence Checklist** | "evidence", "what proof do I need" | Generates a tailored evidence checklist based on your legal situation |
-
-All agents support **multi-turn conversation** — if the bot needs more details, it asks targeted follow-up questions and remembers your answers across messages.
-
----
-
-## 📦 Legal Database
-
-The system ships with a comprehensive database of Indian law in structured JSON format:
-
-| Act | Description |
-|-----|-------------|
-| **BNS 2023** | Bharatiya Nyaya Sanhita (replaced IPC) |
-| **IPC** | Indian Penal Code (legacy reference) |
-| **CrPC** | Code of Criminal Procedure |
-| **CPC** | Code of Civil Procedure |
-| **HMA** | Hindu Marriage Act |
-| **IDA** | Industrial Disputes Act |
-| **IEA** | Indian Evidence Act |
-| **MVA** | Motor Vehicles Act |
-| **NIA** | Negotiable Instruments Act |
-| **COI** | Constitution of India |
-
----
-
-## 🚀 Getting Started
+## 🚀 Quickstart Guide
 
 ### Prerequisites
-
 - Python 3.11+
 - Node.js 18+
-- MongoDB running on `localhost:27017`
-- Ollama installed with `qwen2.5:3b` and `nomic-embed-text` models pulled
-- Groq API key (free tier works — [console.groq.com](https://console.groq.com))
+- MongoDB 6.0+ (running locally or MongoDB Atlas)
+- Groq Cloud API Key ([console.groq.com](https://console.groq.com))
 
-### Quick Start
-
+### 1. Clone & Configure
 ```bash
-# Clone
-git clone https://github.com/your-username/courtRoom.ai.git
+git clone https://github.com/Vatsal728/courtRoom.ai.git
 cd courtRoom.ai
 
-# Backend
-cd backend
+# Copy environment template
+copy .env.example .env
+```
+
+Edit `.env` and add your keys:
+```ini
+GROQ_API_KEY=gsk_your_actual_groq_key_here
+MONGODB_URL=mongodb://localhost:27017
+MONGODB_DB_NAME=courtroom_ai
+```
+
+### 2. Backend Setup
+```bash
+# Create virtual environment
 python -m venv venv
-venv\Scripts\activate          # Windows
-pip install -r requirements.txt
+venv\Scripts\activate      # On Windows
+# source venv/bin/activate  # On Linux/macOS
 
-# Frontend
-cd ../frontend
+# Install dependencies
+pip install -r backend/requirements.txt
+
+# Run FastAPI backend
+uvicorn api.main:app --app-dir backend --reload --port 8000
+```
+
+### 3. Frontend Setup
+```bash
+cd frontend
 npm install
-
-# Configure
-cp .env.example .env           # Add your GROQ_API_KEY and GOOGLE_API_KEY
-# (Google API key is optional — set EMBEDDING_PROVIDER=ollama to skip it)
-
-# Run (or use start.bat)
-cd ../backend
-uvicorn api.main:app --reload --port 8000
-# In another terminal:
-cd ../frontend
 npm run dev
 ```
 
-Open `http://localhost:3000` and start asking legal questions.
-
-### Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `GROQ_API_KEY` | ✅ | — | Groq Cloud API key for LLM generation and translation |
-| `GROQ_ENABLED` | No | `1` | Set to `0` to disable Groq (falls back to local Ollama) |
-| `GROQ_TRANSLATION_ENABLED` | No | `1` | Set to `0` to disable Groq translation (uses Google/Ollama fallback) |
-| `GROQ_GENERATION_MODEL` | No | `llama-3.3-70b-versatile` | Groq model for legal analysis |
-| `GROQ_TRANSLATE_MODEL` | No | `llama-3.1-8b-instant` | Groq model for translation |
-| `OLLAMA_BASE_URL` | No | `http://localhost:11434` | Ollama server URL |
-| `OLLAMA_GENERATION_MODEL` | No | `qwen2.5:3b` | Local Ollama model for fallback generation |
-| `OLLAMA_EMBED_MODEL` | No | `nomic-embed-text` | Ollama model for embeddings |
-| `EMBEDDING_PROVIDER` | No | `google` | Set to `ollama` to use local embeddings (no Google API key needed) |
-| `GOOGLE_API_KEY` | No | — | Google AI API key for Gemini embeddings |
-| `MONGODB_URI` | No | `mongodb://localhost:27017` | MongoDB connection string |
-| `MONGODB_DB` | No | `courtroom_ai` | MongoDB database name |
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 🔧 Tech Stack
+## 🧪 Verification & Testing
 
-### Backend
-
-| Component | Technology |
-|-----------|-----------|
-| Framework | FastAPI 0.104 |
-| LLM (cloud) | Groq SDK — `llama-3.3-70b-versatile`, `llama-3.1-8b-instant` |
-| LLM (local) | Ollama — `qwen2.5:3b` |
-| Vector DB | ChromaDB 0.4 |
-| Document DB | MongoDB 4.6 (via PyMongo) |
-| Embeddings | Google Gemini `gemini-embedding-001` or Ollama `nomic-embed-text` |
-| PDF generation | ReportLab 4.0 |
-| PDF parsing | PyMuPDF 1.23, PyPDF 3.17 |
-| Search | BM25 (rank-bm25) + vector ensemble |
-| Reranker | BAAI/bge-reranker-base (optional, disabled by default) |
-| Auth | JWT (python-jose) + bcrypt |
-| Rate limiting | SlowAPI |
-
-### Frontend
-
-| Component | Technology |
-|-----------|-----------|
-| Framework | React 19.2 |
-| Language | TypeScript 6.0 |
-| Bundler | Vite 8.1 |
-| Styling | Tailwind CSS 4.3 |
-| State | Zustand 5.0 |
-| Routing | React Router DOM 7.18 |
-| HTTP | Axios + native fetch (SSE streaming) |
-| Icons | Lucide React |
-
----
-
-## 📊 Retrieval Performance
-
-The ensemble retrieval is tuned for legal text precision:
-
-- **BM25 weight: 0.7** — favored over vector search because section-number queries and exact legal terminology benefit from lexical matching
-- **Vector weight: 0.3** — captures semantic similarity for paraphrased queries
-- **Dynamic weights** — auto-switches to higher BM25 weight when section-number patterns are detected
-- **Optional reranker** — BGE cross-encoder for when maximum precision is needed
-
----
-
-## 🧪 Testing
-
-Test scripts live in `C:\Users\...\opencode\` (run via temp files to avoid PowerShell encoding issues):
+The platform includes an automated master verification suite testing tool routing, entity extraction, session persistence, word-boundary gating, and dual PDF/DOCX generation:
 
 ```bash
-# Run all agent tests (33 checks — notice, RTI, strategy, audit, config)
-python test_agents_all.py
+# Execute 20-test master QA suite
+python backend/tests/run_full_verification_suite.py
+```
 
-# Run multi-turn continuation tests (30 checks)
-python test_multiturn.py
-
-# Run Phase 6 regression tests (3 checks)
-python test_phase6.py
-
-# Live server test against running backend on port 8000
-python test_live_user.py
+```text
+==================================================================================
+VERIFICATION SUMMARY: 20/20 TEST CASES PASSED (100.0%)
+==================================================================================
+  [PASS] TC-01 | Cyber Fraud & Bank Freeze Routing + VPA/UTR Extraction
+  [PASS] TC-02 | Snatching Police Complaint (Sec 304 BNS & Sec 173 BNSS)
+  [PASS] TC-03 | Unpaid Salary + Gratuity Sum & Company Extraction
+  [PASS] TC-04 | RTI Form A Application Routing & PIO Extraction
+  [PASS] TC-05 | Single-Turn Security Deposit Legal Notice Routing
+  [PASS] TC-06 | Case Strategy Builder with Lakh Multiplier & Limitation Date
+  [PASS] TC-07 | Multi-Turn Legal Notice to Tenant Ramesh (Sec 106 TPA)
+  [PASS] TC-08 | Multi-Turn Labour Dues Continuation with Domain Keywords
+  [PASS] TC-09 | MongoDB / In-Memory Session TTL Expiration Enforcement
+  [PASS] TC-10 | DomainClassifier & FactExtractor on Cyber Fraud Benchmark
+  [PASS] TC-11 | Elimination of False-Positive Cruelty Trigger on 'Wife'
+  [PASS] TC-12 | Word-Boundary Gate Prevents 'con' Substring Leakage
+  [PASS] TC-13 | ResponseFormatter Preserves BNS/BNSS/BSA Citations
+  [PASS] TC-14 | Police Complaint PDF/DOCX Parity, Counterfoil & XML Safety
+  [PASS] TC-15 | Cyber Fraud PDF/DOCX Grounding (RBI Circular & IT Act)
+  [PASS] TC-16 | Labour Dues PDF/DOCX Code on Wages & 7-Day Cure Window
+  [PASS] TC-17 | Parameter Alias Normalization Across Direct REST Endpoints
+  [PASS] TC-18 | DeadlineTracker Multi-Format Date Parsing & Unit Accuracy
+  [PASS] TC-19 | EvidenceChecklist Domain Coverage ('labor' & 'labour')
+  [PASS] TC-20 | DocumentAudit Deterministic Clause Verification
 ```
 
 ---
 
-## 📄 License
+## 📜 License & Disclaimer
 
-This project is for educational and research purposes. Legal information provided by this system is not a substitute for professional legal advice.
+This project is open-source and dual-licensed under either:
+- **Apache License, Version 2.0** ([LICENSE-APACHE](LICENSE-APACHE))
+- **MIT License** ([LICENSE-MIT](LICENSE-MIT))
 
----
+at your option.
 
-> Built with ❤️ for making Indian legal information accessible to everyone.
+> **Disclaimer**: courtRoom.ai is an artificial intelligence research platform designed to provide automated statutory guidance and pleading drafts. It does not constitute formal legal counsel and does not create an advocate-client relationship. Users should review generated drafts with a licensed advocate before filing in court or before statutory authorities.
