@@ -117,9 +117,35 @@ class RAGPipeline:
         "coi": "Constitution of India 1950",
         "iea": "Indian Evidence Act 1872 (mapped to BSA 2023)",
         "hma": "Hindu Marriage Act 1955",
+        "hindu-marriage-act": "Hindu Marriage Act 1955",
         "ida": "Indian Divorce Act 1869",
         "mva": "Motor Vehicles Act 1988",
         "nia": "Negotiable Instruments Act 1881",
+        "bns_2023": "Bharatiya Nyaya Sanhita 2023",
+        "bnss_2023": "Bharatiya Nagarik Suraksha Sanhita 2023",
+        "bsa_2023": "Bharatiya Sakshya Adhiniyam 2023",
+        "it-act": "Information Technology Act 2000",
+        "rti-act": "Right to Information Act 2005",
+        "consumer-protection-act": "Consumer Protection Act 2019",
+        "contract-act": "Indian Contract Act 1872",
+        "tp-act": "Transfer of Property Act 1882",
+        "specific-relief-act": "Specific Relief Act 1963",
+        "limitation-act": "Limitation Act 1963",
+        "payment-gratuity-act-1972": "Payment of Gratuity Act 1972",
+        "arbitration-act": "Arbitration and Conciliation Act 1996",
+        "companies-act": "Companies Act 2013",
+        "sale-of-goods-act": "Sale of Goods Act 1930",
+        "partnership-act": "Indian Partnership Act 1932",
+        "indian-registration-act-1908": "Registration Act 1908",
+        "real-estate-regulation-amp-development-act-2016": "Real Estate (Regulation and Development) Act 2016",
+        "dv-act": "Protection of Women from Domestic Violence Act 2005",
+        "hindu-succession-act-1956": "Hindu Succession Act 1956",
+        "special-marriage-act-1954": "Special Marriage Act 1954",
+        "sexual-harassment-women-at-workplace": "Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act 2013",
+        "pocso-act-2012": "Protection of Children from Sexual Offences Act 2012",
+        "juvenile-justice-care-protection-children-act-2015": "Juvenile Justice (Care and Protection of Children) Act 2015",
+        "pc-act": "Prevention of Corruption Act 1988",
+        "prevention-atrocities": "Scheduled Castes and the Scheduled Tribes (Prevention of Atrocities) Act 1989",
     }
 
     _REGISTRY_PATH = resolve("data/laws") / "act_registry.json"
@@ -709,7 +735,7 @@ class RAGPipeline:
 
         for json_path in sorted(laws_dir.glob("*.json")):
             stem = json_path.stem.lower()
-            if stem == "act_registry":
+            if stem in ("act_registry", "bns_bnss_bsa_2023_combined", "hindu-marriage-act"):
                 continue
             if stem.upper() in skip_stems:
                 print(f"  [JSON] Skipping {json_path.name} (already loaded from IndiaLaw.db)")
@@ -1059,7 +1085,7 @@ class RAGPipeline:
         "delayed": "time of payment of wages", "delay": "time of payment of wages",
         "delaying": "time of payment of wages", "delays": "time of payment of wages",
         "not paying": "non-payment of wages", "didn't pay": "non-payment of wages", "did not pay": "non-payment of wages",
-        "cheated": "fraud", "cheating": "fraud", "scam": "fraud", "scammed": "fraud",
+        "cheated": "cheating", "cheating": "cheating", "scam": "cheating by personation", "scammed": "cheating", "fraudster": "cheating by personation", "upi": "cheating by personation computer resource", "kyc": "cheating by personation",
         "evicted": "eviction", "evict": "eviction", "evicting": "eviction", "thrown out": "eviction",
         "security deposit": "security deposit refund", "deposit refund": "security deposit refund",
         "divorce": "divorce", "maintenance": "maintenance",
@@ -1105,7 +1131,10 @@ class RAGPipeline:
         "didn't give back": "criminal breach of trust", "didn't return": "criminal breach of trust",
         "divorced": "divorce", "divorcing": "divorce", "divorcee": "divorce",
         "salary": "wages", "salaries": "wages", "my salary": "my wages",
-        "has not paid my salary": "time of payment of wages", "not paying my salary": "time of payment of wages",
+        "has not paid my salary": "time limit for payment of wages",
+        "not released my": "time limit for payment of wages",
+        "not released": "time limit for payment of wages",
+        "unpaid salary": "time limit for payment of wages", "not paying my salary": "time of payment of wages",
         "salary not paid": "time of payment of wages", "did not pay my salary": "time of payment of wages",
         "hasn't paid my salary": "time of payment of wages", "not paid my wages": "time of payment of wages",
         "fired": "retrenchment", "sacked": "retrenchment", "laid off": "retrenchment", "laid-off": "retrenchment",

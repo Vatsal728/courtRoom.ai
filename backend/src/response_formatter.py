@@ -1,21 +1,16 @@
 import json
 import logging
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 from src.domain_config import get_config
 
 logger = logging.getLogger("courtroom-response-formatter")
 
-# CJK ranges (Chinese / Japanese / Korean). LLMs have been observed
-# hallucinating Chinese characters in non-Chinese answers; such output is
-# treated as unusable instead of being shown to the user.
 _CJK_RE = re.compile(
     r"[\u2e80-\u2eff\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]"
 )
 
-# Marks a free-text string as an explicit legal citation (as opposed to
-# prose containing incidental numbers like years / fines / rupee amounts).
 _CITATION_MARKER_RE = re.compile(
     r"\b(?:section|sec\.?|s\.|art\.?|article|rule|sch\.?|schedule|bnss?|ipc|crpc|bsa|iea)\b",
     re.IGNORECASE,
@@ -25,15 +20,7 @@ _PROCESSING_ERR = "The AI response could not be processed. Please try again."
 
 
 def _extract_json_object(text: str) -> dict:
-    """Tolerantly extract a JSON object from LLM output.
-
-    Groq with `json_object` returns a clean object, but local models (Ollama
-    qwen2.5:3b) sometimes wrap the JSON in prose or a code fence. Strategy:
-    1. strip ```json/``` fences,
-    2. try a direct parse,
-    3. else slice from the first `{` to the last `}` and parse that,
-    4. else try progressively trimming trailing content until a parse succeeds.
-    """
+    """Tolerantly extract a JSON object from LLM output."""
     if not text or not text.strip():
         return {}
     text = text.strip()
@@ -43,10 +30,9 @@ def _extract_json_object(text: str) -> dict:
     first = text.find("{")
     last = text.rfind("}")
     if first != -1 and last != -1 and last > first:
-        candidates.append(text[first:last + 1])
-    # Fallback: walk back from the final `}` trimming partial trailing tokens.
+        candidates.append(text[first : last + 1])
     if first != -1 and last != -1:
-        head = text[first:last + 1]
+        head = text[first : last + 1]
         cut = head.rfind(",")
         while cut > 0:
             trimmed = head[:cut] + "}"
@@ -91,16 +77,29 @@ def _get_list(d: dict, *keys: str, default: list = None) -> list:
     return default or []
 
 
+# Multi-target alias groups so both current enactments (BNS, BNSS, BSA, Code on Wages)
+# and historical acts match their respective retrieved sources accurately.
 _ACT_ALIASES = {
-    "bnss": "code of criminal procedure", "crpc": "code of criminal procedure",
-    "bns": "bharatiya nyaya sanhita", "ipc": "indian penal code",
-    "bsa": "indian evidence act", "iea": "indian evidence act",
-    "nia": "negotiable instruments act", "hsa": "hindu succession act",
-    "hma": "hindu marriage act", "cpa": "consumer protection act",
-    "ida": "industrial disputes act", "mva": "motor vehicles act",
-    "pwa": "payment of wages act", "mwa": "minimum wages act",
-    "coi": "constitution of india", "rti": "right to information",
-    "it act": "information technology act",
+    "bnss": ("bharatiya nagarik suraksha sanhita", "code of criminal procedure"),
+    "crpc": ("code of criminal procedure", "bharatiya nagarik suraksha sanhita"),
+    "bns": ("bharatiya nyaya sanhita", "indian penal code"),
+    "ipc": ("indian penal code", "bharatiya nyaya sanhita"),
+    "bsa": ("bharatiya sakshya adhiniyam", "indian evidence act"),
+    "iea": ("indian evidence act", "bharatiya sakshya adhiniyam"),
+    "code on wages": ("code on wages", "payment of wages", "minimum wages"),
+    "nia": ("negotiable instruments act",),
+    "hsa": ("hindu succession act",),
+    "hma": ("hindu marriage act",),
+    "cpa": ("consumer protection act",),
+    "ida": ("industrial disputes act", "industrial relations code"),
+    "mva": ("motor vehicles act",),
+    "pwa": ("payment of wages act", "code on wages"),
+    "mwa": ("minimum wages act", "code on wages"),
+    "coi": ("constitution of india",),
+    "rti": ("right to information",),
+    "it act": ("information technology act",),
+    "dpdp": ("digital personal data protection",),
+    "tpa": ("transfer of property act",),
 }
 
 
@@ -116,33 +115,39 @@ def _filter_sections(sections: list, sources: List[Dict]) -> list:
         if act and num:
             valid.append((act, num))
 
-    def act_of(sec_lower: str) -> str:
-        for alias, full in _ACT_ALIASES.items():
-            if alias in sec_lower:
-                return full
+    def acts_of(sec_lower: str) -> Tuple[str, ...]:
+        # Check longer keys first (e.g. 'bnss' before 'bns')
+        for alias in sorted(_ACT_ALIASES.keys(), key=len, reverse=True):
+            if re.search(rf"\b{re.escape(alias)}\b", sec_lower):
+                return _ACT_ALIASES[alias]
         for vact, _ in valid:
             first = vact.split()[0]
             if first in sec_lower:
-                return vact
-        return ""
+                return (vact,)
+        return ()
 
     kept = []
     seen = set()
     for sec in sections:
-        # Dedupe on act+number, ignoring parenthetical descriptions
-        # ("BNS 2023 Section 306" == "BNS 2023 Section 306 (theft)").
         plain = re.sub(r"\(.*?\)", "", sec.lower())
-        # Prefer an explicit "Section N" marker; otherwise the first number can
-        # be the act's year ("BNS 2023 Section 306" -> 2023, not 306).
-        m = (re.search(r"(?:section|sec\.?)\s*(\d{1,4})\b", plain)
-             or re.search(r"\b(\d{1,4})(?:[a-z]|)\b", plain))
+        m = re.search(r"(?:section|sec\.?|article|art\.?)\s*(\d{1,4})\b", plain) or re.search(
+            r"\b(\d{1,4})(?:[a-z]|)\b", plain
+        )
         if not m:
             continue
         num = m.group(1)
-        act = act_of(plain)
-        matches = [(va, vn) for va, vn in valid if vn == num and (not act or va.startswith(act) or act in va)]
+        candidate_acts = acts_of(plain)
+        matches = [
+            (va, vn)
+            for va, vn in valid
+            if vn == num
+            and (
+                not candidate_acts
+                or any(va.startswith(ca) or ca in va for ca in candidate_acts)
+            )
+        ]
         if matches:
-            key = (act, num) if act else (plain.strip(), num)
+            key = (matches[0][0], num)
             if key in seen:
                 continue
             seen.add(key)
@@ -152,13 +157,7 @@ def _filter_sections(sections: list, sources: List[Dict]) -> list:
 
 def _filter_citations(items: list, sources: List[Dict]) -> list:
     """Keep only entries that either cite no section number, or cite a section
-    number that exists in the retrieved sources. Kills hallucinated section
-    numbers in free-text fields like penalties.
-
-    Number-vetting only applies to strings that explicitly look like citations
-    ("under Section 420", "BNS 318"); free-text numbers (years, months, rupee
-    amounts, fines) are never sections and must not be filtered out.
-    """
+    number that exists in the retrieved sources."""
     if not items:
         return items
     valid_nums = set()
@@ -168,8 +167,11 @@ def _filter_citations(items: list, sources: List[Dict]) -> list:
             valid_nums.add(num)
     kept = []
     for it in items:
-        nums = [n for n in re.findall(r"\b\d{1,4}\b", it)
-                if not (n.isdigit() and 1900 <= int(n) <= 2100)]  # years, not sections
+        nums = [
+            n
+            for n in re.findall(r"\b\d{1,4}\b", it)
+            if not (n.isdigit() and 1900 <= int(n) <= 2100)
+        ]
         if nums and _CITATION_MARKER_RE.search(it) and not all(n in valid_nums for n in nums):
             continue
         kept.append(it)
@@ -177,9 +179,6 @@ def _filter_citations(items: list, sources: List[Dict]) -> list:
 
 
 def _get_penalties(cr: dict) -> list:
-    """Normalize penalties that may arrive as a list OR as a per-section dict
-    ({'BNS 2023 Section 303': 'punishment', ...}). Per-section entries stay
-    per-section; they are never merged."""
     raw = cr.get("penalties") if isinstance(cr, dict) else None
     if isinstance(raw, dict) and raw:
         out = []
@@ -194,11 +193,6 @@ def _get_criminal_route(data: dict, sources: List[Dict]) -> Dict[str, Any]:
     cr = data.get("criminal_route", {})
     if not isinstance(cr, dict):
         cr = {}
-    # Verified-only: sections come from the LLM's applicable_sections, filtered
-    # against the verified source list to drop hallucinations. The model
-    # reliably emits penalty keys like "BNS 2023 Section 306" even when it
-    # leaves applicable_sections empty, so those keys are used as the section
-    # list (still filtered) to keep cited sections and penalties consistent.
     sections = _filter_sections(_get_list(cr, "applicable_sections"), sources)
     if not sections:
         raw_pens = cr.get("penalties")
@@ -207,7 +201,7 @@ def _get_criminal_route(data: dict, sources: List[Dict]) -> Dict[str, Any]:
     return {
         "applicable_sections": sections,
         "penalties": _filter_citations(_get_penalties(cr), sources),
-        "procedure": _filter_citations(_get_list(cr, "procedure"), sources)
+        "procedure": _filter_citations(_get_list(cr, "procedure"), sources),
     }
 
 
@@ -218,12 +212,19 @@ def _get_civil_route(data: dict) -> Dict[str, Any]:
     return {
         "remedies": _get_list(cr, "remedies"),
         "compensation_range": _get_str(cr, "compensation_range", "compensation"),
-        "procedure": _get_list(cr, "procedure")
+        "procedure": _get_list(cr, "procedure"),
     }
 
 
-def _format_markdown(short_answer: str, is_this_illegal: str, criminal_route: dict, civil_route: dict,
-                     compensation_claims: list, evidence_needed: list, practical_steps: list) -> str:
+def _format_markdown(
+    short_answer: str,
+    is_this_illegal: str,
+    criminal_route: dict,
+    civil_route: dict,
+    compensation_claims: list,
+    evidence_needed: list,
+    practical_steps: list,
+) -> str:
     def numbered(items: list, indent: str = "   ") -> str:
         return "\n".join(f"{indent}{i + 1}. {item}" for i, item in enumerate(items))
 
@@ -244,9 +245,9 @@ def _format_markdown(short_answer: str, is_this_illegal: str, criminal_route: di
 
     crim_body = []
     if sections:
-        crim_body.append(f"� Applicable Sections: {sections}")
+        crim_body.append(f"• Applicable Sections: {sections}")
     if penalties:
-        crim_body.append("� Penalties:\n" + numbered(penalties))
+        crim_body.append("• Penalties:\n" + numbered(penalties))
     if crim_proc:
         crim_body.append("• Procedure:\n" + crim_proc)
     if crim_body:
@@ -282,27 +283,29 @@ def _build_applicable_laws(sources: List[Dict]) -> Dict[str, list]:
 
 
 def _build_formatted_sources(sources: List[Dict]) -> List[Dict]:
-    return [{
-        "section": s.get("section_number") or s.get("section") or "Unknown",
-        "section_title": s.get("section_title") or "",
-        "topic": s.get("topic") or "General",
-        "source_act": s.get("act_name") or s.get("source_act") or s.get("source") or "Unknown Act",
-        "courts": s.get("applicable_courts") or s.get("courts") or ["District Court"],
-        "keywords": s.get("keywords") or [],
-        "status": s.get("status") or "active",
-        "effective_from": s.get("effective_from") or "",
-        "effective_until": s.get("effective_until") or "",
-        "replaced_by": s.get("replaced_by") or "",
-        "content_preview": (s.get("content") or s.get("text") or "")[:300],
-        "content": s.get("content") or s.get("text") or ""
-    } for s in sources]
+    return [
+        {
+            "section": s.get("section_number") or s.get("section") or "Unknown",
+            "section_title": s.get("section_title") or "",
+            "topic": s.get("topic") or "General",
+            "source_act": s.get("act_name") or s.get("source_act") or s.get("source") or "Unknown Act",
+            "courts": s.get("applicable_courts") or s.get("courts") or ["District Court"],
+            "keywords": s.get("keywords") or [],
+            "status": s.get("status") or "active",
+            "effective_from": s.get("effective_from") or "",
+            "effective_until": s.get("effective_until") or "",
+            "replaced_by": s.get("replaced_by") or "",
+            "content_preview": (s.get("content") or s.get("text") or "")[:300],
+            "content": s.get("content") or s.get("text") or "",
+        }
+        for s in sources
+    ]
 
 
 class ResponseFormatter:
     """Format LLM JSON response into structured NyayGuru-style output"""
 
     def _apply_shaping(self, data: dict, domain: str) -> dict:
-        """Drop route sections the domain should not carry (config-driven)."""
         shaping = get_config().get("response_shaping", {})
         suppress_crim = shaping.get("suppress_criminal_route", [])
         suppress_civ = shaping.get("suppress_civil_route", [])
@@ -312,8 +315,15 @@ class ResponseFormatter:
             data.pop("civil_route", None)
         return data
 
-    def format_response(self, query: str, llm_response: str, sources: List[Dict],
-                        domain: str, confidence: float, response_type: str = None) -> Dict[str, Any]:
+    def format_response(
+        self,
+        query: str,
+        llm_response: str,
+        sources: List[Dict],
+        domain: str,
+        confidence: float,
+        response_type: str = None,
+    ) -> Dict[str, Any]:
         data = {}
         if llm_response and llm_response.strip():
             data = _extract_json_object(llm_response)
@@ -327,8 +337,9 @@ class ResponseFormatter:
         data = self._apply_shaping(data, domain)
 
         short_answer = _get_str(
-            data, "short_answer",
-            default=_PROCESSING_ERR if (garbled or (llm_response and not data)) else ""
+            data,
+            "short_answer",
+            default=_PROCESSING_ERR if (garbled or (llm_response and not data)) else "",
         )
         is_this_illegal = _get_str(data, "is_this_illegal")
         criminal_route = _get_criminal_route(data, sources)
@@ -337,8 +348,15 @@ class ResponseFormatter:
         evidence_needed = _get_list(data, "evidence_needed")
         practical_steps = _get_list(data, "practical_steps")[:6]
 
-        markdown = _format_markdown(short_answer, is_this_illegal, criminal_route, civil_route,
-                                    compensation_claims, evidence_needed, practical_steps)
+        markdown = _format_markdown(
+            short_answer,
+            is_this_illegal,
+            criminal_route,
+            civil_route,
+            compensation_claims,
+            evidence_needed,
+            practical_steps,
+        )
 
         return {
             "query": query,
@@ -355,10 +373,16 @@ class ResponseFormatter:
             "evidence_needed": evidence_needed,
             "applicable_laws": _build_applicable_laws(sources),
             "sources": _build_formatted_sources(sources),
-            "status": "success"
+            "status": "success",
         }
 
 
-def format_legal_response(query: str, llm_response: str, sources: List[Dict],
-                          domain: str, confidence: float, response_type: str = None) -> Dict[str, Any]:
+def format_legal_response(
+    query: str,
+    llm_response: str,
+    sources: List[Dict],
+    domain: str,
+    confidence: float,
+    response_type: str = None,
+) -> Dict[str, Any]:
     return ResponseFormatter().format_response(query, llm_response, sources, domain, confidence, response_type)

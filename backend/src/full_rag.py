@@ -206,9 +206,13 @@ class FullRAGSystem:
             f"{c.get('act_name')} {c.get('section_number')}: {c.get('reason')}" for c in rejected
         ])
 
+        def _fmt_sec(val):
+            v = str(val or "").strip()
+            return v if v.lower().startswith(("section", "article", "rule", "schedule")) else f"Section {v}"
+
         context = "\n\n".join(
-            f"[{s.get('act_name') or s.get('source_act')} Section "
-            f"{s.get('section_number') or s.get('section')} - {s.get('section_title') or ''} "
+            f"[{s.get('act_name') or s.get('source_act')} "
+            f"{_fmt_sec(s.get('section_number') or s.get('section'))} - {s.get('section_title') or ''} "
             f"({s.get('_label') or _status_label(s)})]\n{s['content']}"
             for s in applicable
         )
@@ -217,8 +221,8 @@ class FullRAGSystem:
                         "only because the question references them or their era. Where the "
                         "context also contains the current replacement law, prefer it.")
         available = "\n".join(
-            f"{s.get('act_name') or s.get('source_act')} Section "
-            f"{s.get('section_number') or s.get('section')}: {s.get('section_title') or ''}"
+            f"{s.get('act_name') or s.get('source_act')} "
+            f"{_fmt_sec(s.get('section_number') or s.get('section'))}: {s.get('section_title') or ''}"
             for s in applicable
         )
 

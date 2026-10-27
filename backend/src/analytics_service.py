@@ -57,8 +57,8 @@ class AnalyticsService:
                 {"$unwind": "$sources"},
                 {"$group": {
                     "_id": {
-                        "act": "$sources.source_act",
-                        "section": "$sources.section_number",
+                        "act": {"$ifNull": ["$sources.source_act", "$sources.act_name"]},
+                        "section": {"$ifNull": ["$sources.section", "$sources.section_number"]},
                     },
                     "count": {"$sum": 1},
                 }},
@@ -85,8 +85,8 @@ class AnalyticsService:
             ],
             "top_cited_sections": [
                 {
-                    "section": f"{s['_id'].get('section')}of {s['_id'].get('source')}"
-                    if s["_id"] else "unknown",
+                    "section": f"{s['_id'].get('section') or 'Section'} of {s['_id'].get('act') or 'Act'}"
+                    if s.get("_id") else "unknown",
                     "count": s["count"],
                 }
                 for s in top_sections

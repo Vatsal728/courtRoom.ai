@@ -136,20 +136,26 @@ class LLMRouter:
     def _call_groq(self, prompt: str) -> str:
         if not self.groq_enabled or self._groq_down:
             raise RuntimeError("Groq unavailable")
-        from groq import Groq
-        client = Groq(api_key=self.groq_api_key, max_retries=1)
-        resp = client.chat.completions.create(
-            model=self.groq_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-            max_tokens=self.groq_max_tokens,
-            response_format={"type": "json_object"},
-            timeout=self.groq_timeout,
-        )
-        content = str(resp.choices[0].message.content or "").strip()
-        if not content:
-            raise RuntimeError("Groq empty response")
-        return content
+        payload = {
+            "model": self.groq_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "max_tokens": self.groq_max_tokens,
+            "response_format": {"type": "json_object"}
+        }
+        headers = {
+            "Authorization": f"Bearer {self.groq_api_key}",
+            "Content-Type": "application/json"
+        }
+        with httpx.Client(timeout=self.groq_timeout, verify=self.groq_ssl_verify) as client:
+            resp = client.post(self._GROQ_URL, json=payload, headers=headers)
+            if resp.status_code != 200:
+                raise RuntimeError(f"Groq error: {resp.status_code} {resp.text[:200]}")
+            data = resp.json()
+            content = str(data["choices"][0]["message"]["content"] or "").strip()
+            if not content:
+                raise RuntimeError("Groq empty response")
+            return content
 
     def _call_ollama(self, prompt: str) -> str:
         """Generate via a local Ollama model (qwen2.5:3b by default).

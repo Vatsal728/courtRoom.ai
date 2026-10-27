@@ -25,7 +25,14 @@ from src.domain_config import get_config
 
 def _contains_any(text: str, keywords: List[str]) -> bool:
     tl = text.lower()
-    return any(k in tl for k in keywords)
+    for k in keywords:
+        if len(k) <= 4:
+            if re.search(rf"\b{re.escape(k)}\b", tl):
+                return True
+        else:
+            if re.search(rf"\b{re.escape(k)}", tl):
+                return True
+    return False
 
 
 def _query_elements(normalized_query: str) -> List[str]:
