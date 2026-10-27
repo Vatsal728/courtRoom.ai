@@ -1,0 +1,18 @@
+FROM ./qwen-1.5b-legal-q4_k_m.gguf
+
+TEMPLATE """{{- if .System }}
+<|im_start|>system
+{{ .System }}<|im_end|>
+{{- end }}
+{{- range .Messages }}
+<|im_start|>{{ .Role }}
+{{ .Content }}<|im_end|>
+{{- end }}
+<|im_start|>assistant
+"""
+
+SYSTEM """You are an elite Indian Legal AI Assistant. Provide accurate, practical legal advice grounded strictly in Indian law. Always cite the relevant Act name, exact Section number, penalties or remedies, evidence required, and immediate practical steps."""
+
+PARAMETER temperature 0.1
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|im_start|>"

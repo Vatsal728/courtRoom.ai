@@ -1,39 +1,27 @@
+"""
+rti_agent.py - RTI Section 6 Application Generator.
+Generates official Form A printable PDF, editable DOCX, and formatted text for submission.
+"""
 import sys
 import io
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Any
 
-# Set console output encoding to UTF-8 to prevent UnicodeEncodeError on Windows terminals
+from src.document_factory import build_rti_application
+
 if sys.stdout.encoding != 'utf-8':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 
 class RTIApplicationAgent:
-    """Generate RTI (Right to Information) application"""
-    
-    def __init__(self):
-        self.pio_addresses = {
-            "municipal": {
-                "name": "Municipal Corporation Office",
-                "address": "Enter your city's municipal office address"
-            },
-            "police": {
-                "name": "Police Commissioner's Office",
-                "address": "Enter your district police HQ address"
-            },
-            "education": {
-                "name": "State Education Department",
-                "address": "Enter education department address"
-            },
-            "health": {
-                "name": "State Health Department",
-                "address": "Enter health department address"
-            }
-        }
-    
-    def generate_rti_application(self, data: Dict) -> str:
-        """Generate RTI Section 6 application"""
-        
-        application = f"""
+    """Generate RTI (Right to Information) Form A applications."""
+
+    def generate_rti_application(self, data: Dict[str, Any]) -> str:
+        """Returns standard Section 6 application text."""
+        return f"""
 RTI APPLICATION (Section 6, RTI Act 2005)
 
 Date: {datetime.now().strftime('%d-%m-%Y')}
@@ -50,53 +38,36 @@ I hereby apply under Section 6 of the Right to Information Act, 2005, to obtain 
 INFORMATION REQUESTED:
 {data.get('information_sought', 'Describe the information you want')}
 
-RELEVANT ACTS/SECTIONS:
-The above information is available under public domain and I have the right to this information as per RTI Act 2005.
-
-METHOD OF RECEIPT:
-I prefer to receive the information through: (Please choose one)
-☐ E-mail
-☐ Postal mail
-☐ In person
-
 APPLICATION FEE:
-I am enclosing Rs. 10 (Rupees Ten) as the application fee in the form of:
-☐ Indian Postal Order
-☐ Bank Draft
-☐ Demand Draft
+Enclosed Rs. 10/- via Indian Postal Order (IPO) / Demand Draft / Court Fee Stamp.
 
 DETAILS OF APPLICANT:
-Name: {data.get('applicant_name', 'Your Name')}
-Address: {data.get('applicant_address', 'Your Address')}
-Phone: {data.get('applicant_phone', 'Your Phone')}
-Email: {data.get('applicant_email', 'Your Email')}
+Name: {data.get('applicant_name', 'Applicant Name')}
+Address: {data.get('applicant_address', 'Applicant Address')}
+Phone: {data.get('applicant_phone', 'Phone Number')}
+Email: {data.get('applicant_email', 'Email Address')}
 
 Yours faithfully,
 
-{data.get('applicant_name', 'Your Name')}
+{data.get('applicant_name', 'Applicant Name')}
 Signature: ___________________
-Date: {datetime.now().strftime('%d-%m-%Y')}
-
-OFFICE USE ONLY:
-Date Received: ___________
-Reference No: ___________
-PIO Sign: ___________
 """
-        
-        return application
 
-if __name__ == "__main__":
-    agent = RTIApplicationAgent()
-    
-    test_data = {
-        "pio_office": "Municipal Corporation, Ahmedabad",
-        "pio_address": "Municipal House, Ahmedabad, Gujarat",
-        "information_sought": "I request copies of all expenditure details on infrastructure development in ward number 50 for the year 2023-24",
-        "applicant_name": "Vatsal Desai",
-        "applicant_address": "123 Main Street, Ahmedabad",
-        "applicant_phone": "9876543210",
-        "applicant_email": "vatsal@example.com"
-    }
-    
-    rti_app = agent.generate_rti_application(test_data)
-    print(rti_app)
+    def generate_both(self, data: Dict[str, Any], output_base: str = None) -> Dict[str, Any]:
+        """Generates Form A PDF and editable DOCX."""
+        applicant = data.get("applicant_name") or "Applicant"
+        clean_name = str(applicant).replace(" ", "_")[:30]
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_filename = output_base or f"RTI_Application_{clean_name}_{ts}"
+
+        doc_paths = build_rti_application(data, base_filename)
+        text_app = self.generate_rti_application(data)
+        return {
+            "status": "ready",
+            "filename": f"{base_filename}.pdf",
+            "docx_filename": f"{base_filename}.docx",
+            "pdf_path": doc_paths["pdf_path"],
+            "docx_path": doc_paths["docx_path"],
+            "base_filename": base_filename,
+            "application_text": text_app
+        }

@@ -1,112 +1,62 @@
+"""
+notice_agent.py - Formal Legal Notice Generator with Qwen 27B LLM Drafting.
+Uses Groq Legal Drafter for advocate-grade legal pleading clauses,
+and document_factory for dual PDF and Word (.docx) export.
+"""
 import sys
 import io
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib import colors
-from datetime import datetime, timedelta
-from typing import Dict
 import os
+from datetime import datetime
+from typing import Dict, Any
 
 from src.paths import resolve
+from src.document_factory import build_legal_notice
+from src.groq_drafter import get_groq_drafter
 
-# Set console output encoding to UTF-8 to prevent UnicodeEncodeError on Windows terminals
 if sys.stdout.encoding != 'utf-8':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 
 class LegalNoticeAgent:
-    """Generate formal legal notice PDF"""
-    
-    def __init__(self):
-        self.styles = getSampleStyleSheet()
-    
-    def generate_notice(self, case_data: Dict, output_path: str = None) -> str:
-        """Generate legal notice PDF"""
+    """Generate formal legal demand notice PDF and DOCX with Qwen 27B drafting."""
+
+    def generate_notice(self, case_data: Dict[str, Any], output_path: str = None) -> str:
+        res = self.generate_both(case_data, output_base=None)
         if output_path:
-            output_path = str(resolve(output_path))
-        else:
-            output_path = str(resolve("output") / "legal_notice.pdf")
+            dest = str(resolve(output_path))
+            os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
+            if dest != res["pdf_path"]:
+                import shutil
+                shutil.copy2(res["pdf_path"], dest)
+            return dest
+        return res["pdf_path"]
 
-        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-        
-        doc = SimpleDocTemplate(output_path, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
-        elements = []
-        
-        # Header
-        header_style = ParagraphStyle(
-            'Header',
-            parent=self.styles['Heading1'],
-            fontSize=16,
-            textColor=colors.HexColor('#1a3a6b'),
-            spaceAfter=10
-        )
-        elements.append(Paragraph("LEGAL NOTICE", header_style))
-        elements.append(Spacer(1, 0.2*inch))
-        
-        # Sender info
-        sender_email = case_data.get('sender_email') or ''
-        recipient_email = case_data.get('recipient_email') or ''
-        sender_info = f"""
-        <b>From:</b> {case_data.get('sender_name', 'Your Name')}
-        {f'<br/>{sender_email}' if sender_email else ''}<br/>
-        {case_data.get('sender_address', 'Your Address')}<br/>
-        <b>To:</b> {case_data.get('recipient_name', 'Recipient Name')}
-        {f'<br/>{recipient_email}' if recipient_email else ''}<br/>
-        {case_data.get('recipient_address', 'Recipient Address')}<br/>
-        <b>Date:</b> {datetime.now().strftime('%d-%m-%Y')}
-        """
-        elements.append(Paragraph(sender_info, self.styles['Normal']))
-        elements.append(Spacer(1, 0.3*inch))
-        
-        # Subject
-        subject_text = f"<b>Subject: Legal Notice for {case_data.get('issue_type', 'Legal Issue')}</b>"
-        elements.append(Paragraph(subject_text, self.styles['Heading2']))
-        elements.append(Spacer(1, 0.2*inch))
-        
-        # Body
-        body_text = f"""
-        Dear {case_data.get('recipient_name', 'Sir/Madam')},<br/><br/>
-        
-        This is to formally notify you that you have violated my legal rights as follows:<br/><br/>
-        
-        <b>Facts of the case:</b><br/>
-        {case_data.get('issue_description', 'Issue description')}<br/><br/>
-        
-        <b>Applicable Law:</b><br/>
-        The aforementioned act/section is {case_data.get('applicable_section', 'the relevant law section')}<br/><br/>
-        
-        <b>Compensation Demanded:</b><br/>
-        I hereby demand compensation of Rs. {case_data.get('demand_amount', '0')} to be paid within 15 days from receipt of this notice.<br/><br/>
-        
-        <b>Deadline:</b><br/>
-        You are required to comply with this demand by {(datetime.now() + timedelta(days=15)).strftime('%d-%m-%Y')}.<br/><br/>
-        
-        Failure to comply will result in legal action without further notice.<br/><br/>
-        
-        Yours faithfully,<br/>
-        {case_data.get('sender_name', 'Your Name')}<br/>
-        Signature: ___________________
-        """
-        elements.append(Paragraph(body_text, self.styles['BodyText']))
-        
-        # Build PDF
-        doc.build(elements)
-        return output_path
+    def generate_both(self, case_data: Dict[str, Any], output_base: str = None) -> Dict[str, str]:
+        sender = case_data.get("sender_name") or "Sender"
+        clean_name = str(sender).replace(" ", "_")[:30]
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_filename = output_base or f"Legal_Notice_{clean_name}_{ts}"
 
-if __name__ == "__main__":
-    agent = LegalNoticeAgent()
-    
-    test_case = {
-        "sender_name": "Vatsal Desai",
-        "sender_address": "123 Main Street, Ahmedabad, Gujarat 380001",
-        "recipient_name": "ABC E-commerce Ltd",
-        "recipient_address": "456 Commerce Park, Mumbai, Maharashtra 400001",
-        "issue_type": "Defective Product",
-        "issue_description": "Purchased laptop (Model XYZ) for Rs 50,000 on 15-07-2024. Product became defective within 2 weeks and seller refuses to provide refund or replacement.",
-        "applicable_section": "Consumer Protection Act 2019, Section 35",
-        "demand_amount": "50000"
-    }
-    
-    pdf_path = agent.generate_notice(test_case)
-    print(f"✅ Legal notice generated: {pdf_path}")
+        # Enhance with Qwen 27B advocate drafting if not already provided
+        if not case_data.get("custom_body_paras"):
+            try:
+                drafter = get_groq_drafter()
+                paras = drafter.draft_legal_notice(case_data)
+                if paras:
+                    case_data["custom_body_paras"] = paras
+            except Exception:
+                pass
+
+        doc_paths = build_legal_notice(case_data, base_filename)
+        return {
+            "status": "ready",
+            "filename": f"{base_filename}.pdf",
+            "docx_filename": f"{base_filename}.docx",
+            "pdf_path": doc_paths["pdf_path"],
+            "docx_path": doc_paths["docx_path"],
+            "base_filename": base_filename,
+            "custom_body_paras": case_data.get("custom_body_paras", [])
+        }
