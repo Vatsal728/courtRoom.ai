@@ -33,6 +33,7 @@ import { LanguageDropdown } from './components/LanguageDropdown';
 import './index.css';
 import {
   downloadPDF,
+  downloadDocument,
   generatePDFNotice,
   generateRTIApplication,
   getEvidenceChecklist,
@@ -291,13 +292,21 @@ function ToolArtifactCard({
           {tool.message && <p className="text-xs text-ink-2 mt-1 leading-relaxed">{tool.message}</p>}
 
           <div className="flex flex-wrap items-center gap-2 mt-3">
-            {isReady && tool.type === 'legal_notice' && tool.pdf_id && (
-              <button
-                onClick={() => downloadPDF(tool.pdf_id!, tool.filename || 'legal_notice.pdf').catch(() => { })}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-btn hover:bg-btn-hover text-white text-xs font-semibold transition cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" /> Download PDF
-              </button>
+            {isReady && tool.pdf_id && (
+              <>
+                <button
+                  onClick={() => downloadDocument(tool.pdf_id!, tool.filename || `${tool.type}.pdf`, 'pdf').catch(() => { })}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-btn hover:bg-btn-hover text-white text-xs font-semibold transition cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" /> Download PDF
+                </button>
+                <button
+                  onClick={() => downloadDocument(tool.pdf_id!, tool.docx_filename || (tool.filename || `${tool.type}`).replace(/\.pdf$/i, '.docx'), 'docx').catch(() => { })}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-card border border-line text-ink hover:bg-hover text-xs font-semibold transition cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5" /> Download Word (.docx)
+                </button>
+              </>
             )}
             {isReady && tool.type === 'rti_application' && tool.application && (
               <>
@@ -1817,9 +1826,14 @@ function AppContent() {
                     <p className="font-semibold text-sm">✅ Notice Created successfully!</p>
                     <p className="text-xs text-ink-2">{noticeResult.filename}</p>
                   </div>
-                  <button onClick={() => noticeResult.pdf_id && downloadPDF(noticeResult.pdf_id, noticeResult.filename)} className="px-4 py-2 bg-ok hover:opacity-90 text-white font-semibold rounded-xl flex items-center gap-2 transition text-sm cursor-pointer">
-                    <Download className="w-4 h-4" /> Download PDF
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => noticeResult.pdf_id && downloadDocument(noticeResult.pdf_id, noticeResult.filename, 'pdf')} className="px-4 py-2 bg-ok hover:opacity-90 text-white font-semibold rounded-xl flex items-center gap-2 transition text-sm cursor-pointer">
+                      <Download className="w-4 h-4" /> Download PDF
+                    </button>
+                    <button onClick={() => noticeResult.pdf_id && downloadDocument(noticeResult.pdf_id, noticeResult.docx_filename || noticeResult.filename, 'docx')} className="px-4 py-2 bg-card border border-line text-ink hover:bg-hover font-semibold rounded-xl flex items-center gap-2 transition text-sm cursor-pointer">
+                      <FileText className="w-4 h-4" /> Word (.docx)
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1920,8 +1934,20 @@ function AppContent() {
 
               {rtiError && <div className="p-3 bg-err/5 border border-err/20 text-err text-sm rounded-xl">{rtiError}</div>}
               {rtiResult && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold text-ink-2">RTI Draft Preview</h4>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-ink-2">RTI Form A Draft Preview</h4>
+                    {rtiResult.pdf_id && (
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => downloadDocument(rtiResult.pdf_id, rtiResult.filename || 'RTI_Form_A.pdf', 'pdf')} className="px-3 py-1.5 bg-btn hover:bg-btn-hover text-white font-semibold rounded-lg flex items-center gap-1.5 transition text-xs cursor-pointer">
+                          <Download className="w-3.5 h-3.5" /> Download PDF
+                        </button>
+                        <button onClick={() => downloadDocument(rtiResult.pdf_id, rtiResult.docx_filename || 'RTI_Form_A.docx', 'docx')} className="px-3 py-1.5 bg-card border border-line text-ink hover:bg-hover font-semibold rounded-lg flex items-center gap-1.5 transition text-xs cursor-pointer">
+                          <FileText className="w-3.5 h-3.5" /> Word (.docx)
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <textarea readOnly value={rtiResult.application} className="w-full h-80 p-4 bg-card border border-line rounded-xl text-ink font-mono text-sm leading-relaxed outline-none shadow-card" />
                   <p className="text-xs text-ink-3">💡 Send the draft copy with a court stamp/postal order of Rs. 10 to PIO.</p>
                 </div>
@@ -2255,13 +2281,22 @@ function AppContent() {
                       <p className="font-semibold text-ink text-sm truncate">{pdf.filename}</p>
                       <p className="text-xs text-ink-3 mt-1">🏷️ compensation claim: Rs. {pdf.demand_amount || 'N/A'}</p>
                     </div>
-                    <button
-                      onClick={() => downloadPDF(pdf._id, pdf.filename)}
-                      className="px-3.5 py-2 rounded-lg bg-btn hover:bg-btn-hover text-white font-semibold flex items-center gap-2 transition text-sm cursor-pointer"
-                    >
-                      <Download className="w-4 h-4" />
-                      Download
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => downloadDocument(pdf._id, pdf.filename, 'pdf')}
+                        className="px-3 py-2 rounded-lg bg-btn hover:bg-btn-hover text-white font-semibold flex items-center gap-1.5 transition text-xs cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        PDF
+                      </button>
+                      <button
+                        onClick={() => downloadDocument(pdf._id, pdf.docx_filename || pdf.filename, 'docx')}
+                        className="px-3 py-2 rounded-lg bg-card border border-line text-ink hover:bg-hover font-semibold flex items-center gap-1.5 transition text-xs cursor-pointer"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        DOCX
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -40,9 +40,17 @@ export interface RetrievalResult {
   matchedTerms: string[];
 }
 
-// ── Agent tool artifacts (Phase 3/4) ────────────────────────────────────
+// ── Agent tool artifacts (All 6 Core Citizen Tools + Document Audit) ────
 
-export type ToolName = 'legal_notice' | 'rti_application' | 'case_strategy' | 'document_audit';
+export type ToolName =
+  | 'legal_notice'
+  | 'rti_application'
+  | 'cyber_fraud'
+  | 'police_complaint'
+  | 'labour_dues'
+  | 'case_strategy'
+  | 'document_audit';
+
 export type ToolStatus = 'ready' | 'needs_input' | 'error';
 
 export interface ToolCard {
@@ -52,7 +60,9 @@ export interface ToolCard {
   message: string;
   pdf_id?: string;
   filename?: string;
+  docx_filename?: string;
   download_url?: string;
+  docx_download_url?: string;
   application?: string;
   strategy?: CaseStrategyResult;
   audit?: DocumentAuditResult;
@@ -89,6 +99,11 @@ export interface CaseStrategyResult {
   };
   action_plan: string[];
   disclaimer: string;
+  pdf_id?: string;
+  filename?: string;
+  docx_filename?: string;
+  download_url?: string;
+  docx_download_url?: string;
 }
 
 export interface AuditCheck {

@@ -24,15 +24,25 @@ from datetime import datetime
 from src.full_rag import FullRAGSystem
 from src.user_docs_service import UserDocsService
 from src.agent import (
-    route_chat_tools, detect_smalltalk, chat_response,
-    merge_tool_answer, execute_tool, is_tool_relevant, detect_explicit_tool,
+    route_chat_tools,
+    detect_smalltalk,
+    chat_response,
+    merge_tool_answer,
+    execute_tool,
+    is_tool_relevant,
+    detect_explicit_tool,
+    _DEFINITION_QUESTION_RE,
 )
 from src.agents.notice_agent import LegalNoticeAgent
 from src.agents.evidence_agent import EvidenceChecklistAgent
 from src.agents.rti_agent import RTIApplicationAgent
 from src.agents.deadline_agent import DeadlineTrackerAgent
 from src.agents.strategy_agent import CaseStrategyAgent
+from src.agents.cyber_fraud_agent import CyberFraudAgent
+from src.agents.police_complaint_agent import PoliceComplaintAgent
+from src.agents.labour_dues_agent import LabourDuesAgent
 from src.agents.audit_agent import DocumentAuditAgent
+from src.session_manager import get_session_manager
 from src.case_service import CaseService
 from src.evidence_service import EvidenceService
 from src.analytics_service import AnalyticsService
@@ -53,6 +63,7 @@ logger = logging.getLogger("courtroom-api")
 
 try:
     import structlog
+
     structlog.configure(
         processors=[
             structlog.stdlib.filter_by_level,
@@ -60,7 +71,7 @@ try:
             structlog.stdlib.add_log_level,
             structlog.stdlib.PositionalArgumentsFormatter(),
             structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.JSONRenderer()
+            structlog.processors.JSONRenderer(),
         ],
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -90,6 +101,9 @@ _analytics_service = None
 _training_service = None
 _user_docs_service = None
 _strategy_agent = None
+_cyber_agent = None
+_police_agent = None
+_labour_agent = None
 _audit_agent = None
 
 
@@ -97,7 +111,7 @@ _audit_agent = None
 async def lifespan(app: FastAPI):
     global _rag_system, _notice_agent, _evidence_agent, _rti_agent, _deadline_agent, _storage
     global _case_service, _evidence_service, _analytics_service, _training_service, _user_docs_service
-    global _strategy_agent, _audit_agent
+    global _strategy_agent, _cyber_agent, _police_agent, _labour_agent, _audit_agent
     log.info("Starting courtRoom.ai API...")
     try:
         _rag_system = FullRAGSystem()
@@ -109,6 +123,9 @@ async def lifespan(app: FastAPI):
     _rti_agent = RTIApplicationAgent()
     _deadline_agent = DeadlineTrackerAgent()
     _strategy_agent = CaseStrategyAgent()
+    _cyber_agent = CyberFraudAgent()
+    _police_agent = PoliceComplaintAgent()
+    _labour_agent = LabourDuesAgent()
     _audit_agent = DocumentAuditAgent()
     _storage = _QueryStorage()
     _case_service = CaseService()
@@ -142,6 +159,7 @@ try:
     from slowapi import Limiter, _rate_limit_exceeded_handler
     from slowapi.util import get_remote_address
     from slowapi.errors import RateLimitExceeded
+
     limiter = Limiter(key_func=get_remote_address)
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -176,7 +194,11 @@ async def add_request_id(request: Request, call_next):
     else:
         logger.info(
             "[%s] %s %s -> %d (%.0fms)",
-            request_id, request.method, request.url.path, response.status_code, duration
+            request_id,
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration,
         )
     return response
 
@@ -220,9 +242,7 @@ def _user_profile(user_id: str) -> Optional[Dict]:
 
 
 def _tool_result_payload(query: str, tools: List[Dict]) -> Dict:
-    """Final response driven by a tool result (no RAG / no clarifying-questions
-    layer). needs_input tools ask their own targeted questions; ready tools
-    carry their artifact for the UI to render."""
+    """Final response driven by a tool result."""
     tool = tools[0]
     needs = tool.get("status") == "needs_input"
     msg = tool.get("message") or ("A few more details are needed." if needs else "Done.")
@@ -242,47 +262,46 @@ def _tool_result_payload(query: str, tools: List[Dict]) -> Dict:
     }
 
 
-# ── Multi-turn tool continuation ─────────────────────────────────────────
-# When a tool asks for missing details, remember it per user so the next
-# message is treated as their answer and merged into the same tool call.
-_PENDING_TOOLS: Dict[str, Dict[str, Any]] = {}
-_PENDING_TTL_SECONDS = float(os.getenv("TOOL_PENDING_TTL_SECONDS", "600"))
-
-
-def _prune_pending() -> None:
-    now = time.monotonic()
-    stale = [uid for uid, p in _PENDING_TOOLS.items() if now - p.get("ts", 0) > _PENDING_TTL_SECONDS]
-    for uid in stale:
-        _PENDING_TOOLS.pop(uid, None)
+# ── Multi-turn tool continuation (MongoDB-backed with TTL) ───────────────
+_session_mgr = get_session_manager()
 
 
 def _store_pending(user_id: str, name: str, params: Dict[str, Any]) -> None:
     if not user_id:
         return
-    _prune_pending()
-    _PENDING_TOOLS[user_id] = {"name": name, "params": params or {}, "ts": time.monotonic()}
+    _session_mgr.store_session(user_id, name, params)
 
 
 def _clear_pending(user_id: str) -> None:
-    _PENDING_TOOLS.pop(user_id, None)
+    if not user_id:
+        return
+    _session_mgr.clear_session(user_id)
 
 
 def _merge_pending(user_id: str, query: str, profile: Optional[Dict] = None) -> Optional[Dict]:
     """If a tool is waiting on details for this user, merge their reply.
 
-    Returns the re-executed tool result when the message is treated as an
-    answer; None when there is no pending tool or the message starts a fresh
-    topic (tool intent, smalltalk, definition question).
+    Only aborts the pending session if:
+    1. The user sends smalltalk or a pure definition question ('what is...'), OR
+    2. The user explicitly invokes a DIFFERENT tool (e.g. switching from legal_notice to rti_application)
+       with an explicit drafting verb ('draft', 'file', 'generate') rather than supplying facts for the
+       currently pending tool.
     """
     if not user_id:
         return None
-    _prune_pending()
-    pending = _PENDING_TOOLS.get(user_id)
+    pending = _session_mgr.get_session(user_id)
     if not pending:
         return None
-    if detect_explicit_tool(query) is not None or is_tool_relevant(query) or detect_smalltalk(query):
+    if detect_smalltalk(query) or _DEFINITION_QUESTION_RE.match((query or "").strip()):
         _clear_pending(user_id)
         return None
+
+    explicit_new = detect_explicit_tool(query)
+    has_command_verb = bool(re.search(r"\b(draft|generate|prepare|create|make|file)\s+(?:a|an|the|my)?\b", query or "", re.I))
+    if explicit_new is not None and explicit_new != pending["name"] and has_command_verb:
+        _clear_pending(user_id)
+        return None
+
     merged = merge_tool_answer(pending["name"], pending["params"], query, profile)
     result = execute_tool(pending["name"], merged, user_id, _storage, profile)
     if result.get("status") == "needs_input":
@@ -316,6 +335,17 @@ class DeadlineRequest(BaseModel):
     incident_date: str
 
 
+class AuditRequest(BaseModel):
+    text: str
+    domain: str = "civil"
+
+
+class TranslateRequest(BaseModel):
+    text: str
+    source_lang: str = "en"
+    target_lang: str = "hi"
+
+
 class CaseCreateRequest(BaseModel):
     client_name: str = Field(..., max_length=200)
     case_type: Optional[str] = None
@@ -335,68 +365,59 @@ class _QueryStorage:
 
     def store_query(self, user_id: str, query_data: Dict) -> str:
         document = {
-            "user_id": user_id,
+            "user_id": user_id or "anonymous",
             "query": query_data["query"],
             "domain": query_data["domain"],
             "confidence": query_data["confidence"],
             "response": query_data["response"],
             "sources": query_data["sources"],
             "created_at": datetime.now(),
-            "status": "completed"
+            "status": "completed",
         }
         result = self.db.queries.insert_one(document)
         return str(result.inserted_id)
 
     def store_pdf_notice(self, user_id: str, case_id: str, pdf_data: Dict) -> str:
         document = {
-            "user_id": user_id,
+            "user_id": user_id or "anonymous",
             "case_id": case_id,
-            "filename": pdf_data["filename"],
-            "pdf_path": pdf_data["pdf_path"],
-            "sender_name": pdf_data["sender_name"],
+            "filename": pdf_data.get("filename", ""),
+            "docx_filename": pdf_data.get("docx_filename", ""),
+            "pdf_path": pdf_data.get("pdf_path", ""),
+            "docx_path": pdf_data.get("docx_path", ""),
+            "sender_name": pdf_data.get("sender_name", ""),
             "sender_email": pdf_data.get("sender_email", ""),
-            "recipient_name": pdf_data["recipient_name"],
+            "recipient_name": pdf_data.get("recipient_name", ""),
             "recipient_email": pdf_data.get("recipient_email", ""),
-            "issue_type": pdf_data["issue_type"],
-            "demand_amount": pdf_data["demand_amount"],
+            "issue_type": pdf_data.get("issue_type", ""),
+            "demand_amount": pdf_data.get("demand_amount", ""),
             "created_at": datetime.now(),
             "downloaded": False,
-            "download_count": 0
+            "download_count": 0,
         }
         result = self.db.pdfs.insert_one(document)
         return str(result.inserted_id)
 
     def get_user_queries(self, user_id: str, limit: int = 50):
-        queries = list(self.db.queries.find(
-            {"user_id": user_id}
-        ).sort("created_at", -1).limit(limit))
+        queries = list(
+            self.db.queries.find({"user_id": user_id}).sort("created_at", -1).limit(limit)
+        )
         for q in queries:
             q["_id"] = str(q["_id"])
         return queries
 
     def get_user_pdfs(self, user_id: str):
-        pdfs = list(self.db.pdfs.find(
-            {"user_id": user_id}
-        ).sort("created_at", -1))
+        pdfs = list(self.db.pdfs.find({"user_id": user_id}).sort("created_at", -1))
         for p in pdfs:
             p["_id"] = str(p["_id"])
         return pdfs
 
 
 # ── Translation helpers ─────────────────────────────────────────
-# Wall-clock budget for the whole translation + QA step. Overshoots degrade
-# gracefully to `translated: partial` instead of blocking the response.
 TRANSLATION_SLA_SECONDS = float(os.getenv("TRANSLATION_SLA_SECONDS", "20"))
 
 
 def _resolve_target_language(query: str, requested: str) -> str:
-    """Effective answer language for a query.
-
-    The dropdown selection wins; when it is English but the query was typed
-    in an Indian script (Gujarati/Hindi/etc.), auto-detect the language and
-    answer in it, so no manual selection is needed. As a last resort, honor
-    an explicit textual request like 'help me in gujarati'.
-    """
     requested = (requested or "en").strip().lower()
     if requested != "en":
         return requested
@@ -412,12 +433,6 @@ def _translate_result(
     translator,
     deadline: Optional[float] = None,
 ) -> int:
-    """Translate the structured answer + source previews into `lang`, in place.
-
-    Full statute text in sources stays English to keep translation fast.
-    Original English values are preserved under original_* keys.
-    Returns the number of fields corrected (always 0; QA pass was removed).
-    """
     if lang in (None, "", "en"):
         return 0
 
@@ -431,7 +446,6 @@ def _translate_result(
             result["translated"] = "partial"
         return over
 
-    # Build fields dict for batch translation
     fields_to_translate = {}
     short = result.get("short_answer")
     if isinstance(short, str) and short.strip():
@@ -446,22 +460,16 @@ def _translate_result(
     if not fields_to_translate:
         return 0
 
-    # Preserve originals before translation
     for key, src in fields_to_translate.items():
         result.setdefault(f"original_{key}", src)
 
-    # Batch translate via Groq -> Google -> original
     translated_fields = translator.batch_translate(fields_to_translate, lang, deadline=deadline)
 
-    # Apply translations
     for key, translated in translated_fields.items():
         result[key] = translated
         if key == "full_response":
             result["response"] = translated
 
-    # Source previews last (lowest priority; may be dropped on deadline).
-    # Batch all preview fields into a single Groq call (individual calls blew
-    # past the free-tier RPM and caused 429 retry storms).
     if not _over_deadline():
         sources = result.get("sources")
         if isinstance(sources, list):
@@ -472,7 +480,6 @@ def _translate_result(
                     val = s.get(field)
                     if isinstance(val, str) and val.strip():
                         source_fields[f"sources.{i}.{field}"] = val
-            translated_sources = None
             if source_fields:
                 translated_source_fields = translator.batch_translate(
                     source_fields, lang, deadline=deadline
@@ -495,7 +502,7 @@ async def health_check(request: Request):
     health = {
         "status": "ok",
         "service": "courtRoom.ai",
-        "version": "1.0"
+        "version": "1.0",
     }
 
     try:
@@ -523,8 +530,13 @@ async def health_check(request: Request):
 
 @app.post("/query")
 @limiter_decorator()
-async def process_query(req: QueryRequest, request: Request, rag: FullRAGSystem = Depends(get_rag),
-                        storage: _QueryStorage = Depends(get_storage), user_id: str = "anonymous"):
+async def process_query(
+    req: QueryRequest,
+    request: Request,
+    rag: FullRAGSystem = Depends(get_rag),
+    storage: _QueryStorage = Depends(get_storage),
+    user_id: str = "anonymous",
+):
     try:
         translator = get_fast_translator()
         original_query = req.query
@@ -550,7 +562,10 @@ async def process_query(req: QueryRequest, request: Request, rag: FullRAGSystem 
             return _tool_result_payload(original_query, [merged])
 
         tools_route = await asyncio.to_thread(
-            route_chat_tools, query_to_process, user_id, _storage,
+            route_chat_tools,
+            query_to_process,
+            user_id,
+            _storage,
             profile=profile,
         )
         if tools_route["tools"]:
@@ -565,7 +580,11 @@ async def process_query(req: QueryRequest, request: Request, rag: FullRAGSystem 
         result["tools"] = tools_route["tools"]
         result["generation_engine"] = rag.llm_router.generation_engine
         if not result.get("response") or not str(result.get("response")).strip():
-            result["response"] = result.get("full_response") or result.get("short_answer") or "No output could be generated for this query."
+            result["response"] = (
+                result.get("full_response")
+                or result.get("short_answer")
+                or "No output could be generated for this query."
+            )
         result["domain"] = result.get("response_type")
         result["confidence"] = result.get("confidence_score")
 
@@ -577,14 +596,17 @@ async def process_query(req: QueryRequest, request: Request, rag: FullRAGSystem 
             if "translated" not in result:
                 result["translated"] = True
 
-        query_id = storage.store_query("anonymous", {
-            "query": original_query,
-            "domain": result.get("response_type"),
-            "confidence": result.get("confidence_score"),
-            "response": result.get("response"),
-            "full_response": result,
-            "sources": result.get("sources", [])
-        })
+        query_id = storage.store_query(
+            user_id or "anonymous",
+            {
+                "query": original_query,
+                "domain": result.get("response_type"),
+                "confidence": result.get("confidence_score"),
+                "response": result.get("response"),
+                "full_response": result,
+                "sources": result.get("sources", []),
+            },
+        )
 
         result["query_id"] = query_id
         result["stored"] = True
@@ -597,8 +619,13 @@ async def process_query(req: QueryRequest, request: Request, rag: FullRAGSystem 
 
 @app.post("/query/stream")
 @limiter_decorator()
-async def stream_query(req: QueryRequest, request: Request, rag: FullRAGSystem = Depends(get_rag),
-                       storage: _QueryStorage = Depends(get_storage), user_id: str = "anonymous"):
+async def stream_query(
+    req: QueryRequest,
+    request: Request,
+    rag: FullRAGSystem = Depends(get_rag),
+    storage: _QueryStorage = Depends(get_storage),
+    user_id: str = "anonymous",
+):
     translator = get_fast_translator()
     original_query = req.query
     target_lang = _resolve_target_language(req.query, req.language)
@@ -611,7 +638,10 @@ async def stream_query(req: QueryRequest, request: Request, rag: FullRAGSystem =
             query_to_process = original_query
             yield sse("status", {"step": "language", "language": target_lang, "message": ""})
             if target_lang != "en" and has_non_latin_script(original_query):
-                yield sse("status", {"step": "translating", "message": f"Reading your question in {target_lang.upper()}..."})
+                yield sse(
+                    "status",
+                    {"step": "translating", "message": f"Reading your question in {target_lang.upper()}..."},
+                )
                 translated_query = translator.query_to_english(original_query, target_lang)
                 if translated_query != original_query:
                     query_to_process = translated_query
@@ -640,7 +670,10 @@ async def stream_query(req: QueryRequest, request: Request, rag: FullRAGSystem =
                 return
 
             tools_route = await asyncio.to_thread(
-                route_chat_tools, query_to_process, user_id, _storage,
+                route_chat_tools,
+                query_to_process,
+                user_id,
+                _storage,
                 profile=profile,
             )
             tools = tools_route["tools"]
@@ -652,8 +685,10 @@ async def stream_query(req: QueryRequest, request: Request, rag: FullRAGSystem =
 
             prep = rag.prepare_context(query_to_process)
             if prep.get("needs_more_info"):
-                body = "I need a few more details before I can identify the exact law that applies.\n\n" + \
-                    "\n".join(f"{i + 1}. {q}" for i, q in enumerate(prep.get("questions") or []))
+                body = (
+                    "I need a few more details before I can identify the exact law that applies.\n\n"
+                    + "\n".join(f"{i + 1}. {q}" for i, q in enumerate(prep.get("questions") or []))
+                )
                 result = {
                     "query": prep["query"],
                     "status": "needs_more_info",
@@ -708,11 +743,11 @@ async def stream_query(req: QueryRequest, request: Request, rag: FullRAGSystem =
 
             llm_response = "".join(llm_parts).strip()
             if not llm_response:
-                # No tokens streamed: Groq and the local Ollama fallback both
-                # failed. Emit the graceful static error so the UI never sees a
-                # bare SSE error event.
                 if rag.llm_router.last_was_error:
-                    yield sse("status", {"step": "fallback", "message": "AI service is temporarily unavailable. Please try again in a few moments."})
+                    yield sse(
+                        "status",
+                        {"step": "fallback", "message": "AI service is temporarily unavailable. Please try again in a few moments."},
+                    )
                     llm_response = json.dumps(LLM_TIMEOUT_ERR)
                 else:
                     raise Exception("No output generated by the language model.")
@@ -725,12 +760,16 @@ async def stream_query(req: QueryRequest, request: Request, rag: FullRAGSystem =
                 sources=sources,
                 domain=domain,
                 confidence=domain_confidence,
-                response_type=response_type
+                response_type=response_type,
             )
             result["generation_engine"] = rag.llm_router.generation_engine
             result["tools"] = tools
             if not result.get("response"):
-                result["response"] = result.get("full_response") or result.get("short_answer") or "No output could be generated for this query."
+                result["response"] = (
+                    result.get("full_response")
+                    or result.get("short_answer")
+                    or "No output could be generated for this query."
+                )
             result["domain"] = result.get("response_type")
             result["confidence"] = result.get("confidence_score")
             result["confidence_details"] = prep.get("confidence_details") or {}
@@ -744,14 +783,17 @@ async def stream_query(req: QueryRequest, request: Request, rag: FullRAGSystem =
                 if "translated" not in result:
                     result["translated"] = True
 
-            query_id = storage.store_query("anonymous", {
-                "query": original_query,
-                "domain": result.get("response_type"),
-                "confidence": result.get("confidence_score"),
-                "response": result.get("response"),
-                "full_response": result,
-                "sources": result.get("sources", [])
-            })
+            query_id = storage.store_query(
+                user_id or "anonymous",
+                {
+                    "query": original_query,
+                    "domain": result.get("response_type"),
+                    "confidence": result.get("confidence_score"),
+                    "response": result.get("response"),
+                    "full_response": result,
+                    "sources": result.get("sources", []),
+                },
+            )
             result["query_id"] = query_id
             result["stored"] = True
 
@@ -767,28 +809,32 @@ async def stream_query(req: QueryRequest, request: Request, rag: FullRAGSystem =
 async def generate_legal_notice(req: NoticeRequest, user_id: str = "anonymous"):
     try:
         case_data = req.model_dump()
-        filename = f"Legal_Notice_{case_data['sender_name'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        case_data['filename'] = filename
-
-        pdf_path = _notice_agent.generate_notice(case_data, output_path=f"output/{filename}")
-
-        pdf_id = _storage.store_pdf_notice(user_id, "case_001", {
-            "filename": filename,
-            "pdf_path": pdf_path,
-            "sender_name": case_data["sender_name"],
-            "sender_email": case_data.get("sender_email", ""),
-            "recipient_name": case_data["recipient_name"],
-            "recipient_email": case_data.get("recipient_email", ""),
-            "issue_type": case_data["issue_type"],
-            "demand_amount": case_data["demand_amount"]
-        })
+        res = _notice_agent.generate_both(case_data)
+        pdf_id = _storage.store_pdf_notice(
+            user_id,
+            "direct_api",
+            {
+                "filename": res["filename"],
+                "docx_filename": res["docx_filename"],
+                "pdf_path": res["pdf_path"],
+                "docx_path": res["docx_path"],
+                "sender_name": case_data.get("sender_name", ""),
+                "sender_email": case_data.get("sender_email", ""),
+                "recipient_name": case_data.get("recipient_name", ""),
+                "recipient_email": case_data.get("recipient_email", ""),
+                "issue_type": case_data.get("issue_type", "Legal Dispute"),
+                "demand_amount": case_data.get("demand_amount", ""),
+            },
+        )
 
         return {
             "status": "success",
             "pdf_id": pdf_id,
-            "pdf_path": pdf_path,
-            "filename": filename,
-            "message": "Legal notice generated and saved"
+            "filename": res["filename"],
+            "docx_filename": res["docx_filename"],
+            "download_url": f"/download/{pdf_id}?format=pdf",
+            "docx_download_url": f"/download/{pdf_id}?format=docx",
+            "message": "Legal notice generated in PDF and DOCX",
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -804,22 +850,45 @@ async def get_pdf_history(user_id: str, storage: _QueryStorage = Depends(get_sto
     return storage.get_user_pdfs(user_id)
 
 
-@app.get("/pdf/{pdf_id}/download")
-async def download_pdf(pdf_id: str):
-    pdf_doc = db.pdfs.find_one({"_id": ObjectId(pdf_id)})
-    if not pdf_doc:
-        raise HTTPException(status_code=404, detail="PDF not found")
+@app.get("/download/{doc_id}")
+async def download_document(doc_id: str, format: str = "pdf"):
+    fmt = (format or "pdf").lower().strip()
+    try:
+        obj_id = ObjectId(doc_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid document ID format")
+
+    doc = db.pdfs.find_one({"_id": obj_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
 
     db.pdfs.update_one(
-        {"_id": ObjectId(pdf_id)},
-        {"$inc": {"download_count": 1}, "$set": {"downloaded": True}}
+        {"_id": obj_id},
+        {"$inc": {"download_count": 1}, "$set": {"downloaded": True}},
     )
 
+    if fmt == "docx":
+        path = doc.get("docx_path")
+        filename = doc.get("docx_filename") or f"{doc.get('filename', 'document').replace('.pdf', '')}.docx"
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    else:
+        path = doc.get("pdf_path")
+        filename = doc.get("filename") or "document.pdf"
+        media_type = "application/pdf"
+
+    if not path or not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"File for format '{fmt}' not found on server")
+
     return FileResponse(
-        path=pdf_doc["pdf_path"],
-        filename=pdf_doc["filename"],
-        media_type="application/pdf"
+        path=path,
+        filename=filename,
+        media_type=media_type,
     )
+
+
+@app.get("/pdf/{pdf_id}/download")
+async def download_pdf_legacy(pdf_id: str):
+    return await download_document(doc_id=pdf_id, format="pdf")
 
 
 @app.get("/evidence/{domain}")
@@ -830,17 +899,158 @@ async def get_evidence_checklist(domain: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/rti-application")
-async def generate_rti_app(data: Dict):
+@app.post("/document-audit")
+async def audit_document_endpoint(req: AuditRequest):
     try:
-        rti_app = _rti_agent.generate_rti_application(data)
-        return {"status": "success", "application": rti_app}
+        agent = _audit_agent or DocumentAuditAgent()
+        return agent.audit(req.text, req.domain)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/translate")
+async def translate_endpoint(req: TranslateRequest):
+    try:
+        translator = get_fast_translator()
+        translated = translator.translate(req.text, req.source_lang, req.target_lang)
+        return {
+            "status": "success",
+            "source_lang": req.source_lang,
+            "target_lang": req.target_lang,
+            "original": req.text,
+            "translated": translated,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/rti-application")
+async def generate_rti_app(data: Dict, user_id: str = "anonymous"):
+    try:
+        res = _rti_agent.generate_both(data)
+        pdf_id = _storage.store_pdf_notice(
+            user_id,
+            "direct_api",
+            {
+                "filename": res["filename"],
+                "docx_filename": res["docx_filename"],
+                "pdf_path": res["pdf_path"],
+                "docx_path": res["docx_path"],
+                "sender_name": data.get("applicant_name", ""),
+                "recipient_name": data.get("pio_office", ""),
+                "issue_type": "RTI Application (Section 6)",
+                "demand_amount": "Rs 10 application fee",
+            },
+        )
+        return {
+            "status": "success",
+            "pdf_id": pdf_id,
+            "filename": res["filename"],
+            "docx_filename": res["docx_filename"],
+            "download_url": f"/download/{pdf_id}?format=pdf",
+            "docx_download_url": f"/download/{pdf_id}?format=docx",
+            "application": res.get("application_text", ""),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/cyber-fraud")
+async def report_cyber_fraud(data: Dict, user_id: str = "anonymous"):
+    try:
+        res = _cyber_agent.generate_filing(data)
+        pdf_id = _storage.store_pdf_notice(
+            user_id,
+            "direct_api",
+            {
+                "filename": res["filename"],
+                "docx_filename": res["docx_filename"],
+                "pdf_path": res["pdf_path"],
+                "docx_path": res["docx_path"],
+                "sender_name": data.get("victim_name", ""),
+                "recipient_name": data.get("victim_bank_name", "Bank"),
+                "issue_type": "Cyber Fraud & Account Freeze",
+                "demand_amount": data.get("amount_lost", ""),
+            },
+        )
+        return {
+            "status": "success",
+            "pdf_id": pdf_id,
+            "filename": res["filename"],
+            "docx_filename": res["docx_filename"],
+            "download_url": f"/download/{pdf_id}?format=pdf",
+            "docx_download_url": f"/download/{pdf_id}?format=docx",
+            "letter_text": res.get("letter_text", ""),
+            "portal_instructions": res.get("portal_instructions", ""),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/police-complaint")
+async def file_police_complaint(data: Dict, user_id: str = "anonymous"):
+    try:
+        res = _police_agent.generate_complaint(data)
+        pdf_id = _storage.store_pdf_notice(
+            user_id,
+            "direct_api",
+            {
+                "filename": res["filename"],
+                "docx_filename": res["docx_filename"],
+                "pdf_path": res["pdf_path"],
+                "docx_path": res["docx_path"],
+                "sender_name": data.get("complainant_name", ""),
+                "recipient_name": data.get("police_station_name", "Police Station"),
+                "issue_type": "Written Police Complaint (BNSS 2023)",
+                "demand_amount": "",
+            },
+        )
+        return {
+            "status": "success",
+            "pdf_id": pdf_id,
+            "filename": res["filename"],
+            "docx_filename": res["docx_filename"],
+            "download_url": f"/download/{pdf_id}?format=pdf",
+            "docx_download_url": f"/download/{pdf_id}?format=docx",
+            "complaint_text": res.get("complaint_text", ""),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/labour-dues")
+async def claim_labour_dues(data: Dict, user_id: str = "anonymous"):
+    try:
+        res = _labour_agent.generate_demand(data)
+        pdf_id = _storage.store_pdf_notice(
+            user_id,
+            "direct_api",
+            {
+                "filename": res["filename"],
+                "docx_filename": res["docx_filename"],
+                "pdf_path": res["pdf_path"],
+                "docx_path": res["docx_path"],
+                "sender_name": data.get("employee_name", ""),
+                "recipient_name": data.get("company_name", ""),
+                "issue_type": "Salary & Labour Dues Claim",
+                "demand_amount": data.get("total_dues_amount", ""),
+            },
+        )
+        return {
+            "status": "success",
+            "pdf_id": pdf_id,
+            "filename": res["filename"],
+            "docx_filename": res["docx_filename"],
+            "download_url": f"/download/{pdf_id}?format=pdf",
+            "docx_download_url": f"/download/{pdf_id}?format=docx",
+            "notice_text": res.get("notice_text", ""),
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/strategy")
-async def build_strategy(data: Dict):
+async def build_strategy(data: Dict, user_id: str = "anonymous"):
     description = str(data.get("case_description") or "").strip()
     if not description:
         raise HTTPException(status_code=400, detail="case_description is required")
@@ -850,20 +1060,30 @@ async def build_strategy(data: Dict):
             domain=data.get("domain"),
             incident_date=data.get("incident_date"),
         )
-        return {"status": "success", **strategy}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/document-audit")
-async def audit_document(data: Dict):
-    try:
-        text = str(data.get("text") or data.get("document_text") or "").strip()
-        if not text:
-            raise HTTPException(status_code=400, detail="text is required")
-        return {"status": "success", **(_audit_agent.audit(text, domain=data.get("domain") or "civil"))}
+        pdf_id = ""
+        if strategy.get("pdf_path") and _storage:
+            comp = strategy.get("compensation_estimate", {})
+            pdf_id = _storage.store_pdf_notice(
+                user_id,
+                "direct_api",
+                {
+                    "filename": strategy.get("filename", ""),
+                    "docx_filename": strategy.get("docx_filename", ""),
+                    "pdf_path": strategy.get("pdf_path", ""),
+                    "docx_path": strategy.get("docx_path", ""),
+                    "sender_name": "Case Brief",
+                    "recipient_name": strategy.get("domain", ""),
+                    "issue_type": "Case Strategy & Legal Opinion",
+                    "demand_amount": f"{comp.get('min_amount', 0)}-{comp.get('max_amount', 0)}",
+                },
+            )
+        return {
+            "status": "success",
+            "pdf_id": pdf_id,
+            "download_url": f"/download/{pdf_id}?format=pdf" if pdf_id else "",
+            "docx_download_url": f"/download/{pdf_id}?format=docx" if pdf_id else "",
+            **strategy,
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -889,7 +1109,7 @@ async def create_case(req: CaseCreateRequest, user_id: str = "anonymous"):
             case_type=req.case_type or "general",
             description=req.description,
             status=req.status,
-            metadata=req.metadata
+            metadata=req.metadata,
         )
         return {"status": "success", "case": case}
     except Exception as e:
@@ -929,8 +1149,11 @@ async def delete_case(case_id: str):
 
 # ── Evidence Upload (Phase 12) ───────────────────────────────────
 @app.post("/cases/{case_id}/evidence")
-async def upload_evidence(case_id: str, file: UploadFile = File(...),
-                          uploaded_by: str = "anonymous"):
+async def upload_evidence(
+    case_id: str,
+    file: UploadFile = File(...),
+    uploaded_by: str = "anonymous",
+):
     try:
         data = await file.read()
         if not data:
@@ -940,7 +1163,7 @@ async def upload_evidence(case_id: str, file: UploadFile = File(...),
             filename=file.filename or "unnamed",
             content_type=file.content_type or "application/octet-stream",
             data=data,
-            uploaded_by=uploaded_by
+            uploaded_by=uploaded_by,
         )
         if not evidence:
             raise HTTPException(status_code=404, detail="Case not found")
@@ -964,7 +1187,7 @@ async def download_evidence(file_id: str):
     return Response(
         content=data,
         media_type=meta.get("content_type") or "application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -1035,19 +1258,20 @@ async def analytics_overview(days: int = 30):
 @app.post("/training/export-dataset")
 async def export_training_dataset(
     output_path: str = "training_data.jsonl",
-    min_confidence: float = 0.5
+    min_confidence: float = 0.5,
 ):
     return _training_service.export_dataset(
         output_path=output_path,
-        min_confidence=min_confidence
+        min_confidence=min_confidence,
     )
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
         "api.main:app",
         host=API_CONFIG["host"],
         port=API_CONFIG["port"],
-        reload=True
+        reload=True,
     )

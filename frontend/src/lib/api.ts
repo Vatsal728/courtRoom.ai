@@ -64,8 +64,8 @@ export async function loginUser(
   if (result.access_token) {
     setAuthToken(result.access_token);
     localStorage.setItem('userId', result.user_id);
-    localStorage.setItem('userName', result.name);
-    localStorage.setItem('userEmail', result.email);
+    localStorage.setItem('userName', result.name || '');
+    localStorage.setItem('userEmail', result.email || email);
   }
 
   return result;
@@ -85,7 +85,7 @@ export async function submitQuery(
   userId: string = 'anonymous',
   language: string = 'en'
 ): Promise<any> {
-  return fetchAPI(`/query?user_id=${userId}`, {
+  return fetchAPI(`/query?user_id=${encodeURIComponent(userId)}`, {
     method: 'POST',
     body: JSON.stringify({ query, language }),
   });
@@ -177,10 +177,10 @@ export async function streamQuery(
 }
 
 export async function getQueryHistory(userId: string): Promise<any[]> {
-  return fetchAPI(`/user/${userId}/queries`);
+  return fetchAPI(`/user/${encodeURIComponent(userId)}/queries`);
 }
 
-// ============ PDF GENERATION ============
+// ============ UNIVERSAL DOCUMENT GENERATION & DOWNLOAD (PDF & DOCX) ============
 
 export async function generatePDFNotice(
   data: {
@@ -197,25 +197,29 @@ export async function generatePDFNotice(
   },
   userId: string = 'anonymous'
 ): Promise<any> {
-  return fetchAPI(`/generate-notice?user_id=${userId}`, {
+  return fetchAPI(`/generate-notice?user_id=${encodeURIComponent(userId)}`, {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-export async function downloadPDF(
-  pdfId: string,
-  filename: string
+export async function downloadDocument(
+  docId: string,
+  filename: string,
+  format: 'pdf' | 'docx' = 'pdf'
 ): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE_URL}/pdf/${pdfId}/download`);
-    if (!response.ok) throw new Error('Download failed');
+    const response = await fetch(`${API_BASE_URL}/download/${encodeURIComponent(docId)}?format=${format}`);
+    if (!response.ok) throw new Error(`Download failed (${format.toUpperCase()})`);
 
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename;
+    const defaultExt = `.${format}`;
+    a.download = filename.toLowerCase().endsWith(defaultExt)
+      ? filename
+      : `${filename.replace(/\.(pdf|docx)$/i, '')}${defaultExt}`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
@@ -226,21 +230,26 @@ export async function downloadPDF(
   }
 }
 
+export async function downloadPDF(
+  pdfId: string,
+  filename: string
+): Promise<void> {
+  return downloadDocument(pdfId, filename, 'pdf');
+}
+
 export async function getUserPDFs(userId: string): Promise<any[]> {
-  return fetchAPI(`/user/${userId}/pdfs`);
+  return fetchAPI(`/user/${encodeURIComponent(userId)}/pdfs`);
 }
 
 export async function getUserDocuments(userId: string): Promise<any[]> {
-  return fetchAPI(`/user/${userId}/documents`);
+  return fetchAPI(`/user/${encodeURIComponent(userId)}/documents`);
 }
 
-// ============ EVIDENCE ============
+// ============ EVIDENCE & DEADLINE ============
 
 export async function getEvidenceChecklist(domain: string): Promise<any> {
-  return fetchAPI(`/evidence/${domain}`);
+  return fetchAPI(`/evidence/${encodeURIComponent(domain)}`);
 }
-
-// ============ DEADLINE ============
 
 export async function checkDeadline(
   caseType: string,
@@ -252,23 +261,59 @@ export async function checkDeadline(
   });
 }
 
-// ============ RTI ============
+// ============ RTI, CYBER FRAUD, POLICE COMPLAINT & LABOUR DUES ============
 
-export async function generateRTIApplication(data: Record<string, string>): Promise<any> {
-  return fetchAPI('/rti-application', {
+export async function generateRTIApplication(
+  data: Record<string, string>,
+  userId: string = 'anonymous'
+): Promise<any> {
+  return fetchAPI(`/rti-application?user_id=${encodeURIComponent(userId)}`, {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-// ============ CASE STRATEGY (Phase 3/4) ============
+export async function reportCyberFraud(
+  data: Record<string, any>,
+  userId: string = 'anonymous'
+): Promise<any> {
+  return fetchAPI(`/cyber-fraud?user_id=${encodeURIComponent(userId)}`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
 
-export async function getStrategy(data: {
-  case_description: string;
-  domain?: string;
-  incident_date?: string;
-}): Promise<any> {
-  return fetchAPI('/strategy', {
+export async function filePoliceComplaint(
+  data: Record<string, any>,
+  userId: string = 'anonymous'
+): Promise<any> {
+  return fetchAPI(`/police-complaint?user_id=${encodeURIComponent(userId)}`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function claimLabourDues(
+  data: Record<string, any>,
+  userId: string = 'anonymous'
+): Promise<any> {
+  return fetchAPI(`/labour-dues?user_id=${encodeURIComponent(userId)}`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// ============ CASE STRATEGY & DOCUMENT AUDIT ============
+
+export async function getStrategy(
+  data: {
+    case_description: string;
+    domain?: string;
+    incident_date?: string;
+  },
+  userId: string = 'anonymous'
+): Promise<any> {
+  return fetchAPI(`/strategy?user_id=${encodeURIComponent(userId)}`, {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -286,7 +331,7 @@ export async function auditDocument(text: string, domain: string = 'civil'): Pro
 export async function uploadDocument(file: File, userId: string = 'anonymous'): Promise<any> {
   const form = new FormData();
   form.append('file', file);
-  const response = await fetch(`${API_BASE_URL}/chat/upload?user_id=${userId}`, {
+  const response = await fetch(`${API_BASE_URL}/chat/upload?user_id=${encodeURIComponent(userId)}`, {
     method: 'POST',
     body: form,
   });
@@ -297,13 +342,11 @@ export async function uploadDocument(file: File, userId: string = 'anonymous'): 
   return response.json();
 }
 
-// ============ HEALTH CHECK ============
+// ============ HEALTH CHECK & TRANSLATION ============
 
 export async function healthCheck(): Promise<any> {
   return fetchAPI('/health');
 }
-
-// ============ TRANSLATION (Phase 10) ============
 
 export async function translateText(
   text: string,
