@@ -5,11 +5,15 @@
     "Bharatiya Nyaya Sanhita 2023": {
       "status": "active",
       "effective_from": "2024-07-01",
-      "replaces": ["Indian Penal Code 1860"],
+      "replaces": [
+        "Indian Penal Code 1860"
+      ],
       "jurisdiction": "Pan-India",
       "domain": "criminal",
       "source_type": "primary",
-      "aliases": ["Bharatiya Nyaya Sanhita 2023"]
+      "aliases": [
+        "Bharatiya Nyaya Sanhita 2023"
+      ]
     },
     "Indian Penal Code 1860": {
       "status": "historical",
@@ -27,11 +31,15 @@
     "Bharatiya Nagarik Suraksha Sanhita 2023": {
       "status": "active",
       "effective_from": "2024-07-01",
-      "replaces": ["Code of Criminal Procedure 1973"],
+      "replaces": [
+        "Code of Criminal Procedure 1973"
+      ],
       "jurisdiction": "Pan-India",
       "domain": "criminal",
       "source_type": "primary",
-      "aliases": ["Bharatiya Nagarik Suraksha Sanhita 2023"]
+      "aliases": [
+        "Bharatiya Nagarik Suraksha Sanhita 2023"
+      ]
     },
     "Code of Criminal Procedure 1973": {
       "status": "historical",
@@ -49,11 +57,15 @@
     "Bharatiya Sakshya Adhiniyam 2023": {
       "status": "active",
       "effective_from": "2024-07-01",
-      "replaces": ["Indian Evidence Act 1872"],
+      "replaces": [
+        "Indian Evidence Act 1872"
+      ],
       "jurisdiction": "Pan-India",
       "domain": "criminal",
       "source_type": "primary",
-      "aliases": ["Bharatiya Sakshya Adhiniyam 2023"]
+      "aliases": [
+        "Bharatiya Sakshya Adhiniyam 2023"
+      ]
     },
     "Indian Evidence Act 1872": {
       "status": "historical",
@@ -70,11 +82,16 @@
     "Code on Wages 2019": {
       "status": "active",
       "effective_from": "2025-11-21",
-      "replaces": ["Payment of Wages Act 1936", "Minimum Wages Act 1948"],
+      "replaces": [
+        "Payment of Wages Act 1936",
+        "Minimum Wages Act 1948"
+      ],
       "jurisdiction": "Pan-India",
       "domain": "labor",
       "source_type": "primary",
-      "aliases": ["Code on Wages 2019"]
+      "aliases": [
+        "Code on Wages 2019"
+      ]
     },
     "Payment of Wages Act 1936": {
       "status": "historical",
@@ -83,7 +100,9 @@
       "jurisdiction": "Pan-India",
       "domain": "labor",
       "source_type": "primary",
-      "aliases": ["Payment of Wages Act 1936"]
+      "aliases": [
+        "Payment of Wages Act 1936"
+      ]
     },
     "Minimum Wages Act 1948": {
       "status": "historical",
@@ -92,16 +111,22 @@
       "jurisdiction": "Pan-India",
       "domain": "labor",
       "source_type": "primary",
-      "aliases": ["Minimum Wages Act 1948"]
+      "aliases": [
+        "Minimum Wages Act 1948"
+      ]
     },
     "Industrial Relations Code 2020": {
       "status": "pending",
       "effective_from": "2026-11-21",
-      "replaces": ["Industrial Disputes Act 1947"],
+      "replaces": [
+        "Industrial Disputes Act 1947"
+      ],
       "jurisdiction": "Pan-India",
       "domain": "labor",
       "source_type": "primary",
-      "aliases": ["Industrial Relations Code 2020"]
+      "aliases": [
+        "Industrial Relations Code 2020"
+      ]
     },
     "Industrial Disputes Act 1947": {
       "status": "active",
@@ -110,7 +135,9 @@
       "jurisdiction": "Pan-India",
       "domain": "labor",
       "source_type": "primary",
-      "aliases": ["Industrial Disputes Act 1947"]
+      "aliases": [
+        "Industrial Disputes Act 1947"
+      ]
     },
     "Code on Social Security 2020": {
       "status": "active",
@@ -118,7 +145,9 @@
       "jurisdiction": "Pan-India",
       "domain": "labor",
       "source_type": "primary",
-      "aliases": ["Code on Social Security 2020"]
+      "aliases": [
+        "Code on Social Security 2020"
+      ]
     },
     "Occupational Safety, Health and Working Conditions Code 2020": {
       "status": "active",
@@ -126,14 +155,20 @@
       "jurisdiction": "Pan-India",
       "domain": "labor",
       "source_type": "primary",
-      "aliases": ["Occupational Safety, Health and Working Conditions Code 2020", "OSHWC Code 2020"]
+      "aliases": [
+        "Occupational Safety, Health and Working Conditions Code 2020",
+        "OSHWC Code 2020"
+      ]
     },
     "Code of Civil Procedure 1908": {
       "status": "active",
       "jurisdiction": "Pan-India",
       "domain": "civil",
       "source_type": "primary",
-      "aliases": ["Code of Civil Procedure 1908", "Code of Civil Procedure 1908 (Chart Notes)"]
+      "aliases": [
+        "Code of Civil Procedure 1908",
+        "Code of Civil Procedure 1908 (Chart Notes)"
+      ]
     },
     "Constitution of India 1950": {
       "status": "active",
@@ -153,49 +188,63 @@
       "jurisdiction": "Pan-India",
       "domain": "consumer",
       "source_type": "primary",
-      "aliases": ["Consumer Protection Act 2019"]
+      "aliases": [
+        "Consumer Protection Act 2019"
+      ]
     },
     "Right to Information Act 2005": {
       "status": "active",
       "jurisdiction": "Pan-India",
       "domain": "civil",
       "source_type": "primary",
-      "aliases": ["Right to Information Act 2005"]
+      "aliases": [
+        "Right to Information Act 2005"
+      ]
     },
     "Information Technology Act 2000": {
       "status": "active",
       "jurisdiction": "Pan-India",
       "domain": "cyber",
       "source_type": "primary",
-      "aliases": ["Information Technology Act 2000"]
+      "aliases": [
+        "Information Technology Act 2000"
+      ]
     },
     "Negotiable Instruments Act 1881": {
       "status": "active",
       "jurisdiction": "Pan-India",
       "domain": "commercial",
       "source_type": "primary",
-      "aliases": ["Negotiable Instruments Act 1881"]
+      "aliases": [
+        "Negotiable Instruments Act 1881"
+      ]
     },
     "Hindu Marriage Act 1955": {
       "status": "active",
       "jurisdiction": "Pan-India",
       "domain": "family",
       "source_type": "primary",
-      "aliases": ["Hindu Marriage Act 1955"]
+      "aliases": [
+        "Hindu Marriage Act 1955"
+      ]
     },
     "Indian Divorce Act 1869": {
       "status": "active",
       "jurisdiction": "Pan-India",
       "domain": "family",
       "source_type": "primary",
-      "aliases": ["Indian Divorce Act 1869"]
+      "aliases": [
+        "Indian Divorce Act 1869"
+      ]
     },
     "Motor Vehicles Act 1988": {
       "status": "active",
       "jurisdiction": "Pan-India",
       "domain": "civil",
       "source_type": "primary",
-      "aliases": ["Motor Vehicles Act 1988"]
+      "aliases": [
+        "Motor Vehicles Act 1988"
+      ]
     },
     "Bombay Rents, Hotel and Lodging House Rates Control Act 1947 (Gujarat)": {
       "status": "active",
@@ -213,28 +262,217 @@
       "jurisdiction": "Pan-India",
       "domain": "cyber",
       "source_type": "primary",
-      "aliases": ["Digital Personal Data Protection Act 2023", "DPDP Act 2023"]
+      "aliases": [
+        "Digital Personal Data Protection Act 2023",
+        "DPDP Act 2023"
+      ]
     },
     "Indian Contract Act 1872": {
       "status": "active",
       "jurisdiction": "Pan-India",
       "domain": "commercial",
       "source_type": "primary",
-      "aliases": ["Indian Contract Act 1872"]
+      "aliases": [
+        "Indian Contract Act 1872"
+      ]
     },
     "Tax Laws of India (Guide)": {
       "status": "active",
       "jurisdiction": "Pan-India",
       "domain": "tax",
       "source_type": "secondary",
-      "aliases": ["Tax Laws of India (Guide)"]
+      "aliases": [
+        "Tax Laws of India (Guide)"
+      ]
     },
     "Muslim Law (Triple Talaq)": {
       "status": "active",
       "jurisdiction": "Pan-India",
       "domain": "family",
       "source_type": "secondary",
-      "aliases": ["Muslim Law (Triple Talaq)"]
+      "aliases": [
+        "Muslim Law (Triple Talaq)"
+      ]
+    },
+    "Transfer of Property Act 1882": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "civil",
+      "source_type": "primary",
+      "aliases": [
+        "Transfer of Property Act 1882",
+        "Tp-Act",
+        "Tp Act"
+      ]
+    },
+    "Specific Relief Act 1963": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "civil",
+      "source_type": "primary",
+      "aliases": [
+        "Specific Relief Act 1963",
+        "Specific-Relief-Act"
+      ]
+    },
+    "Limitation Act 1963": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "civil",
+      "source_type": "primary",
+      "aliases": [
+        "Limitation Act 1963",
+        "Limitation-Act"
+      ]
+    },
+    "Payment of Gratuity Act 1972": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "labor",
+      "source_type": "primary",
+      "aliases": [
+        "Payment of Gratuity Act 1972",
+        "Payment-Gratuity-Act-1972"
+      ]
+    },
+    "Arbitration and Conciliation Act 1996": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "commercial",
+      "source_type": "primary",
+      "aliases": [
+        "Arbitration and Conciliation Act 1996",
+        "Arbitration-Act"
+      ]
+    },
+    "Companies Act 2013": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "commercial",
+      "source_type": "primary",
+      "aliases": [
+        "Companies Act 2013",
+        "Companies-Act"
+      ]
+    },
+    "Sale of Goods Act 1930": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "commercial",
+      "source_type": "primary",
+      "aliases": [
+        "Sale of Goods Act 1930",
+        "Sale-Of-Goods-Act"
+      ]
+    },
+    "Indian Partnership Act 1932": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "commercial",
+      "source_type": "primary",
+      "aliases": [
+        "Indian Partnership Act 1932",
+        "Partnership-Act"
+      ]
+    },
+    "Registration Act 1908": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "civil",
+      "source_type": "primary",
+      "aliases": [
+        "Registration Act 1908",
+        "Indian-Registration-Act-1908"
+      ]
+    },
+    "Real Estate (Regulation and Development) Act 2016": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "consumer",
+      "source_type": "primary",
+      "aliases": [
+        "Real Estate (Regulation and Development) Act 2016",
+        "RERA 2016"
+      ]
+    },
+    "Protection of Women from Domestic Violence Act 2005": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "family",
+      "source_type": "primary",
+      "aliases": [
+        "Protection of Women from Domestic Violence Act 2005",
+        "Dv-Act"
+      ]
+    },
+    "Hindu Succession Act 1956": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "family",
+      "source_type": "primary",
+      "aliases": [
+        "Hindu Succession Act 1956",
+        "Hindu-Succession-Act-1956"
+      ]
+    },
+    "Special Marriage Act 1954": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "family",
+      "source_type": "primary",
+      "aliases": [
+        "Special Marriage Act 1954",
+        "Special-Marriage-Act-1954"
+      ]
+    },
+    "Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act 2013": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "labor",
+      "source_type": "primary",
+      "aliases": [
+        "POSH Act 2013",
+        "Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act 2013"
+      ]
+    },
+    "Protection of Children from Sexual Offences Act 2012": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "criminal",
+      "source_type": "primary",
+      "aliases": [
+        "POCSO Act 2012",
+        "Protection of Children from Sexual Offences Act 2012"
+      ]
+    },
+    "Juvenile Justice (Care and Protection of Children) Act 2015": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "criminal",
+      "source_type": "primary",
+      "aliases": [
+        "Juvenile Justice (Care and Protection of Children) Act 2015"
+      ]
+    },
+    "Prevention of Corruption Act 1988": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "criminal",
+      "source_type": "primary",
+      "aliases": [
+        "Prevention of Corruption Act 1988",
+        "Pc-Act"
+      ]
+    },
+    "Scheduled Castes and the Scheduled Tribes (Prevention of Atrocities) Act 1989": {
+      "status": "active",
+      "jurisdiction": "Pan-India",
+      "domain": "criminal",
+      "source_type": "primary",
+      "aliases": [
+        "SC/ST Prevention of Atrocities Act 1989",
+        "Scheduled Castes and the Scheduled Tribes (Prevention of Atrocities) Act 1989"
+      ]
     }
   }
 }
