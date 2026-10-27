@@ -163,3 +163,12 @@ This project is open-source and dual-licensed under either:
 at your option.
 
 > **Disclaimer**: courtRoom.ai is an artificial intelligence research platform designed to provide automated statutory guidance and pleading drafts. It does not constitute formal legal counsel and does not create an advocate-client relationship. Users should review generated drafts with a licensed advocate before filing in court or before statutory authorities.
+
+---
+
+<div align="center">
+
+**Built with ❤️ for making Indian legal justice accessible to everyone.**
+
+</div>
+
